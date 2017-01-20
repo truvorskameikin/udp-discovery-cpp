@@ -11,17 +11,25 @@ namespace udpdiscovery {
 
 #pragma pack(push)
 #pragma pack(1)
-  struct Header {
+  struct PacketHeader {
+    PacketHeader();
+
+    void MakeMagic();
+
+    bool TestMagic() const;
+
     unsigned char magic[4];
     unsigned char packet_type;
+    uint64_t packet_index;
+    unsigned char packet_index_reset;
     uint16_t user_data_size;
     unsigned char reserved[4];
   };
 #pragma pack(pop)
 
-  void MakePacket(PacketType type, const std::string& user_data, std::string& packet_data);
+  void MakePacket(const PacketHeader& header, const std::string& user_data, std::string& packet_data_out);
 
-  bool ParsePacketHeader(const char* buffer, size_t buffer_size, PacketType& type_out, uint16_t& user_data_size_out);
+  bool ParsePacketHeader(const char* buffer, size_t buffer_size, PacketHeader& header_out);
 };
 
 #endif
