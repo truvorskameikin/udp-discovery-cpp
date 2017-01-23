@@ -59,7 +59,10 @@ namespace udpdiscovery {
     return true;
   }
 
-  void MakePacket(const PacketHeader& header, const std::string& user_data, std::string& packet_data_out) {
+  bool MakePacket(const PacketHeader& header, const std::string& user_data, std::string& packet_data_out) {
+    if (sizeof(PacketHeader) + user_data.size() > kMaxPacketSize)
+      return false;
+
     uint16_t user_data_size = (uint16_t) user_data.size();
 
     packet_data_out.resize(sizeof(PacketHeader) + user_data.size());
@@ -78,6 +81,8 @@ namespace udpdiscovery {
     std::copy(
       user_data.begin(), user_data.begin() + user_data_size,
       packet_data_out.begin() + sizeof(PacketHeader));
+
+    return true;
   }
 
   bool ParsePacketHeader(const char* buffer, size_t buffer_size, PacketHeader& header_out) {
@@ -91,9 +96,14 @@ namespace udpdiscovery {
     if (header->packet_type != kPacketIAmHere)
       return false;
 
-    header_out = (*header);
-    header_out.packet_index = ReadBigEndian<uint64_t>(&header_out.packet_index);
-    header_out.user_data_size = ReadBigEndian<uint16_t>(&header_out.user_data_size);
+    PacketHeader parsed_packet_header = (*header);
+    parsed_packet_header.packet_index = ReadBigEndian<uint64_t>(&parsed_packet_header.packet_index);
+    parsed_packet_header.user_data_size = ReadBigEndian<uint16_t>(&parsed_packet_header.user_data_size);
+
+    if (sizeof(PacketHeader) + parsed_packet_header.user_data_size > kMaxPacketSize)
+      return false;
+
+    header_out = parsed_packet_header;
 
     return true;
   }

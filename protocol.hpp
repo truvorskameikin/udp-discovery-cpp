@@ -27,7 +27,9 @@ namespace udpdiscovery {
   };
 #pragma pack(pop)
 
-  void MakePacket(const PacketHeader& header, const std::string& user_data, std::string& packet_data_out);
+  const size_t kMaxPacketSize = 65536;
+
+  bool MakePacket(const PacketHeader& header, const std::string& user_data, std::string& packet_data_out);
 
   bool ParsePacketHeader(const char* buffer, size_t buffer_size, PacketHeader& header_out);
 };
