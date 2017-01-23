@@ -1,18 +1,19 @@
 #ifndef __UDP_DISCOVERY_SERVER_H_
 #define __UDP_DISCOVERY_SERVER_H_
 
-#include "ip_port.hpp"
+#include <list>
+#include "discovered_client.hpp"
 
 namespace udpdiscovery {
   namespace impl {
-    class ServerSocketInterface {
+    class ServerWorkingEnvInterface {
      public:
-      virtual ~ServerSocketInterface() {
+      virtual ~ServerWorkingEnvInterface() {
       }
 
-      virtual bool Create(int port) = 0;
+      virtual std::list<DiscoveredClient> ListClients() = 0;
 
-      virtual int Recv(char* buffer, int buffer_size, IpPort& from_out) = 0;
+      virtual void Exit() = 0;
     };
   };
 
@@ -23,13 +24,16 @@ namespace udpdiscovery {
 
     bool Start(int port);
 
-    void Update();
+    std::list<DiscoveredClient> ListClients() const;
+
+    void Stop();
 
    private:
     bool started_;
-    std::string buffer_;
-    impl::ServerSocketInterface* sock_;
+    impl::ServerWorkingEnvInterface* working_env_;
   };
+
+  bool Same(const std::list<DiscoveredClient>& lhv, const std::list<DiscoveredClient>& rhv);
 };
 
 #endif

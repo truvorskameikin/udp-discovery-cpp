@@ -3,15 +3,12 @@
 #include "server.hpp"
 #include "client.hpp"
 
-void ServerFunc() {
-  udpdiscovery::Server server;
-  if (server.Start(12345))
-    std::cout << "Server started" << std::endl;
-
-  while (true) {
-    server.Update();
-  }
-};
+#if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#else
+#include <unistd.h>
+#endif
 
 void ClientFunc(std::string user_data) {
   udpdiscovery::Client client;
@@ -19,20 +16,41 @@ void ClientFunc(std::string user_data) {
     std::cout << "Client started" << std::endl;
 
   while (true) {
-    threadroutines::this_thread::sleep_for(1.0);
-
     client.Send();
+
+#if defined(_WIN32)
+    Sleep(1000);
+#else
+    usleep(1000000);
+#endif
   }
 }
 
 int main(int argc, char* argv[]) {
-  threadroutines::thread server_thread(&ServerFunc);
+  udpdiscovery::Server server;
+  server.Start(12345);
 
   std::string user_data(argv[1]);
   threadroutines::thread client_thread(&ClientFunc, std::move(user_data));
 
-  server_thread.join();
-  client_thread.join();
+  std::list<udpdiscovery::DiscoveredClient> clients;
+  while (true) {
+    std::list<udpdiscovery::DiscoveredClient> new_clients = server.ListClients();
+    if (!udpdiscovery::Same(clients, new_clients)) {
+      clients = new_clients;
+
+      std::cout << "Discovered clients: " << clients.size() << std::endl;
+      for (std::list<udpdiscovery::DiscoveredClient>::const_iterator it = clients.begin(); it != clients.end(); ++it) {
+        std::cout << " - " << (*it).ip_port().ip() << ", " << (*it).user_data() << std::endl;
+      }
+    }
+
+#if defined(_WIN32)
+    Sleep(500);
+#else
+    usleep(500000);
+#endif
+  }
 
   return 0;
 }
