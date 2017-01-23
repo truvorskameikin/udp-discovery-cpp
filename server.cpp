@@ -80,7 +80,7 @@ namespace udpdiscovery {
       if (ParsePacketHeader(buffer_.data(), sizeof(PacketHeader), header)) {
         std::string user_data(
           buffer_.begin() + sizeof(PacketHeader), buffer_.begin() + sizeof(PacketHeader) + header.user_data_size);
-        std::cout << "From " << from.ip() << ":" << from.port() << ": " << user_data.size() << ", " << user_data << std::endl;
+        std::cout << "From " << from.ip() << ":" << from.port() << ": " << user_data << std::endl;
       }
     }
   }

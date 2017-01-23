@@ -28,15 +28,11 @@ void ClientFunc(std::string user_data) {
 int main(int argc, char* argv[]) {
   threadroutines::thread server_thread(&ServerFunc);
 
-  std::string user_data1("User 1");
-  threadroutines::thread client_thread1(&ClientFunc, std::move(user_data1));
-
-  std::string user_data2("Long user data");
-  threadroutines::thread client_thread2(&ClientFunc, std::move(user_data2));
+  std::string user_data(argv[1]);
+  threadroutines::thread client_thread(&ClientFunc, std::move(user_data));
 
   server_thread.join();
-  client_thread1.join();
-  client_thread2.join();
+  client_thread.join();
 
   return 0;
 }
