@@ -12,7 +12,7 @@
 
 void ClientFunc(std::string user_data) {
   udpdiscovery::Client client;
-  if (client.Start(12345, user_data))
+  if (client.Start(12012, user_data))
     std::cout << "Client started" << std::endl;
 
   while (true) {
@@ -28,7 +28,10 @@ void ClientFunc(std::string user_data) {
 
 int main(int argc, char* argv[]) {
   udpdiscovery::Server server;
-  server.Start(12345);
+  if (!server.Start(12012)) {
+    std::cerr << "Can't start server" << std::endl;
+    return 1;
+  }
 
   std::string user_data(argv[1]);
   threadroutines::thread client_thread(&ClientFunc, std::move(user_data));
