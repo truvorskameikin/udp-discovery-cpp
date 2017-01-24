@@ -1,8 +1,6 @@
 cmake_minimum_required(VERSION 3.4)
 
 set(LIB_SOURCES
-	chrono_routines.cpp
-	thread_routines.cpp
 	client.cpp
 	ip_port.cpp
 	protocol.cpp

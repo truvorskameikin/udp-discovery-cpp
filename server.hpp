@@ -33,6 +33,7 @@ namespace udpdiscovery {
     impl::ServerWorkingEnvInterface* working_env_;
   };
 
+  bool Same(const IpPort& lhv, const IpPort& rhv);
   bool Same(const std::list<DiscoveredClient>& lhv, const std::list<DiscoveredClient>& rhv);
 };
 

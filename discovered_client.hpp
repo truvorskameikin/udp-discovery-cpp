@@ -28,10 +28,19 @@ namespace udpdiscovery {
       last_received_packet_ = last_received_packet;
     }
 
+    void set_last_updated(long last_updated) {
+      last_updated_ = last_updated;
+    }
+
+    long last_updated() const {
+      return last_updated_;
+    }
+
    private:
     IpPort ip_port_;
     std::string user_data_;
     uint64_t last_received_packet_;
+    long last_updated_;
   };
 };
 

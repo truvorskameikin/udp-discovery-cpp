@@ -5,14 +5,14 @@
 
 namespace udpdiscovery {
   namespace impl {
-    class ClientSocketInterface {
+    class ClientWorkingEnvInterface {
      public:
-      virtual ~ClientSocketInterface() {
+      virtual ~ClientWorkingEnvInterface() {
       }
 
-      virtual bool Create(int port) = 0;
+      virtual void SetUserData(const std::string& user_data) = 0;
 
-      virtual int Send(const char* buffer, int buffer_size) = 0;
+      virtual void Exit() = 0;
     };
   };
 
@@ -23,22 +23,13 @@ namespace udpdiscovery {
 
     bool Start(int port, const std::string& user_data);
 
-    const std::string user_data() const {
-      return user_data_;
-    }
+    void SetUserData(const std::string& user_data);
 
-    void set_user_data(const std::string& user_data) {
-      user_data_ = user_data;
-    }
-
-    void Send();
+    void Stop();
 
    private:
     bool started_;
-    std::string user_data_;
-    uint64_t packet_index_;
-    uint64_t max_packet_index_;
-    impl::ClientSocketInterface* sock_;
+    impl::ClientWorkingEnvInterface* working_env_;
   };
 };
 

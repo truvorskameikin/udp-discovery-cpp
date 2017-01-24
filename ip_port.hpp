@@ -6,7 +6,7 @@
 namespace udpdiscovery {
   class IpPort {
    public:
-    IpPort() : ip_("127.0.0.1"), port_(80) {
+    IpPort() : ip_("0.0.0.0"), port_(0) {
     }
 
     IpPort(const std::string& ip, int port) : ip_(ip), port_(port) {
@@ -32,6 +32,10 @@ namespace udpdiscovery {
 
     int port() const {
       return port_;
+    }
+
+    bool operator==(const IpPort& rhv) const {
+      return ip_ == rhv.ip_ && port_ == rhv.port_;
     }
 
    private:

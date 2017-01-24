@@ -1,3 +1,5 @@
+#include <vector>
+#include <iostream>
 #include "protocol.hpp"
 #include "server.hpp"
 
@@ -10,6 +12,8 @@ typedef SOCKET SocketType;
 typedef int AddressLenType;
 const SocketType kInvalidSocket = INVALID_SOCKET;
 #else
+#include <stdlib.h>
+#include <unistd.h>
 #include <netinet/in.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -27,16 +31,61 @@ const SocketType kInvalidSocket = -1;
 #include <pthread.h>
 #endif
 
-#include <iostream>
+// time
+#if defined(__APPLE__)
+#include <stdint.h>
+#include <mach/mach_time.h>
+#endif
+#include <time.h>
+#include <sys/time.h>
+
+static
+long NowTime() {
+#if defined(_WIN32)
+  __int64 freq = 0;
+  if (!QueryPerformanceFrequency((LARGE_INTEGER *) &freq))
+    return time_point();
+  __int64 cur = 0;
+  QueryPerformanceCounter((LARGE_INTEGER *) &cur);
+  return (long) (cur / freq) * 1000;
+#elif defined(__APPLE__)
+  mach_timebase_info_data_t time_info;
+  mach_timebase_info(&time_info);
+
+  uint64_t cur = mach_absolute_time();
+  return (long) ((cur / (time_info.denom * 1000000)) * time_info.numer);
+#else
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return (long) (ts.tv_sec * 1000 + ts.tv_nsec / 1000000);
+#endif
+
+  return 0;
+}
 
 namespace udpdiscovery {
   namespace impl {
     class ServerWorkingEnv : public ServerWorkingEnvInterface {
      public:
-      ServerWorkingEnv() : exit_(false) {
+      ServerWorkingEnv() : sock_(kInvalidSocket), exit_(false) {
 #if defined(_WIN32)
 #else
         pthread_mutex_init(&mutex_, 0);
+#endif
+      }
+
+      ~ServerWorkingEnv() {
+        if (sock_ != kInvalidSocket) {
+#if defined(_WIN32)
+          closesocket(sock_);
+#else
+          close(sock_);
+#endif
+        }
+
+#if defined(_WIN32)
+#else
+        pthread_mutex_destroy(&mutex_);
 #endif
       }
 
@@ -47,8 +96,10 @@ namespace udpdiscovery {
 #endif
 
         sock_ = socket(AF_INET, SOCK_DGRAM, 0);
-        if (sock_ == kInvalidSocket)
+        if (sock_ == kInvalidSocket) {
+          std::cerr << "udpdiscovery::Server can't create socket" << std::endl;
           return false;
+        }
 
         int value = 1;
         setsockopt(sock_, SOL_SOCKET, SO_REUSEADDR, (const char *) &value, sizeof(value));
@@ -74,8 +125,20 @@ namespace udpdiscovery {
         addr.sin_port = htons(port);
         addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
-        if (bind(sock_, (struct sockaddr *) &addr, sizeof(sockaddr_in)) < 0)
+        if (bind(sock_, (struct sockaddr *) &addr, sizeof(sockaddr_in)) < 0) {
+          if (sock_ != kInvalidSocket) {
+#if defined(_WIN32)
+            closesocket(sock_);
+#else
+            close(sock_);
+#endif
+          }
+
+          sock_ = kInvalidSocket;
+
+          std::cerr << "udpdiscovery::Server can't bind socket" << std::endl;
           return false;
+        }
 
         buffer_.resize(kMaxPacketSize);
 
@@ -87,8 +150,13 @@ namespace udpdiscovery {
         AddressLenType addr_length = sizeof(sockaddr_in);
 
         int length = (int) recvfrom(sock_, &buffer_[0], buffer_.size(), 0, (struct sockaddr *) &from_addr, &addr_length);
-        if (length <= 0)
+        if (length <= 0) {
+          lock();
+          deleteIdle(NowTime());
+          unlock();
+
           return;
+        }
 
         IpPort from;
         from.set_port(ntohs(from_addr.sin_port));
@@ -104,16 +172,19 @@ namespace udpdiscovery {
 
             std::list<DiscoveredClient>::iterator find_it = discovered_clients_.end();
             for (std::list<DiscoveredClient>::iterator it = discovered_clients_.begin(); it != discovered_clients_.end(); ++it) {
-              if ((*it).ip_port().ip() == from.ip()) {
+              if (Same((*it).ip_port(), from)) {
                 find_it = it;
                 break;
               }
             }
 
+            long cur_time = NowTime();
+
             if (find_it == discovered_clients_.end()) {
               discovered_clients_.push_back(DiscoveredClient());
               discovered_clients_.back().set_ip_port(from);
               discovered_clients_.back().SetUserData(user_data, header.packet_index);
+              discovered_clients_.back().set_last_updated(cur_time);
             } else {
               bool new_user_data = false;
               if (header.packet_index_reset) {
@@ -125,7 +196,10 @@ namespace udpdiscovery {
 
               if (new_user_data)
                 (*find_it).SetUserData(user_data, header.packet_index);
+              (*find_it).set_last_updated(cur_time);
             }
+
+            deleteIdle(cur_time);
 
             unlock();
           }
@@ -152,6 +226,20 @@ namespace udpdiscovery {
         unlock();
 
         return result;
+      }
+
+     private:
+      void deleteIdle(long cur_time) {
+        long idle_timeout = 5000;
+
+        std::vector<std::list<DiscoveredClient>::iterator> to_delete;
+        for (std::list<DiscoveredClient>::iterator it = discovered_clients_.begin(); it != discovered_clients_.end(); ++it) {
+          if (cur_time - (*it).last_updated() > idle_timeout)
+            to_delete.push_back(it);
+        }
+
+        for (size_t i = 0; i < to_delete.size(); ++i)
+          discovered_clients_.erase(to_delete[i]);
       }
 
      private:
@@ -192,14 +280,14 @@ namespace udpdiscovery {
     }
 
 #if defined(_WIN32)
-    DWORD WINAPI WorkingFunc(void* working_env_typeless) {
+    DWORD WINAPI PlatformServerWorkingFunc(void* working_env_typeless) {
       ServerWorkingEnv* working_env = (ServerWorkingEnv*) working_env_typeless;
       ServerWorkingFunc(working_env);
 
       return 0;
     }
 #else
-    void* WorkingFunc(void* working_env_typeless) {
+    void* PlatformServerWorkingFunc(void* working_env_typeless) {
       ServerWorkingEnv* working_env = (ServerWorkingEnv*) working_env_typeless;
       ServerWorkingFunc(working_env);
 
@@ -227,11 +315,11 @@ namespace udpdiscovery {
     working_env_ = working_env;
 
 #if defined(_WIN32)
-    HANDLE thread = CreateThread(NULL, 0, impl::WorkingFunc, working_env_, 0, NULL);
+    HANDLE thread = CreateThread(NULL, 0, impl::PlatformServerWorkingFunc, working_env_, 0, NULL);
     CloseHandle(thread);
 #else
     pthread_t thread;
-    pthread_create(&thread, 0, impl::WorkingFunc, working_env_);
+    pthread_create(&thread, 0, impl::PlatformServerWorkingFunc, working_env_);
     pthread_detach(thread);
 #endif
 
@@ -257,11 +345,15 @@ namespace udpdiscovery {
     started_ = false;
   }
 
+  bool Same(const IpPort& lhv, const IpPort& rhv) {
+    return lhv == rhv;
+  }
+
   bool Same(const std::list<DiscoveredClient>& lhv, const std::list<DiscoveredClient>& rhv) {
     for (std::list<DiscoveredClient>::const_iterator lhv_it = lhv.begin(); lhv_it != lhv.end(); ++lhv_it) {
       std::list<DiscoveredClient>::const_iterator in_rhv = rhv.end();
       for (std::list<DiscoveredClient>::const_iterator rhv_it = rhv.begin(); rhv_it != rhv.end(); ++rhv_it) {
-        if ((*lhv_it).ip_port().ip() == (*rhv_it).ip_port().ip()) {
+        if (Same((*lhv_it).ip_port(), (*rhv_it).ip_port())) {
           in_rhv = rhv_it;
           break;
         }
@@ -274,7 +366,7 @@ namespace udpdiscovery {
     for (std::list<DiscoveredClient>::const_iterator rhv_it = rhv.begin(); rhv_it != rhv.end(); ++rhv_it) {
       std::list<DiscoveredClient>::const_iterator in_lhv = lhv.end();
       for (std::list<DiscoveredClient>::const_iterator lhv_it = lhv.begin(); lhv_it != lhv.end(); ++lhv_it) {
-        if ((*rhv_it).ip_port().ip() == (*lhv_it).ip_port().ip()) {
+        if (Same((*rhv_it).ip_port(), (*lhv_it).ip_port())) {
           in_lhv = lhv_it;
           break;
         }
