@@ -71,6 +71,7 @@ namespace udpdiscovery {
      public:
       ServerWorkingEnv() : sock_(kInvalidSocket), exit_(false) {
 #if defined(_WIN32)
+        InitializeCriticalSection(&critical_section_);
 #else
         pthread_mutex_init(&mutex_, 0);
 #endif
@@ -86,6 +87,7 @@ namespace udpdiscovery {
         }
 
 #if defined(_WIN32)
+        DeleteCriticalSection(&critical_section_);
 #else
         pthread_mutex_destroy(&mutex_);
 #endif

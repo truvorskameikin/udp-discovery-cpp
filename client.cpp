@@ -38,8 +38,10 @@ namespace udpdiscovery {
           : port_(0),
             sock_(kInvalidSocket),
             packet_index_(0),
-            max_packet_index_(1073741824) {
+            max_packet_index_(1073741824),
+            exit_(false) {
 #if defined(_WIN32)
+        InitializeCriticalSection(&critical_section_);
 #else
         pthread_mutex_init(&mutex_, 0);
 #endif
@@ -55,6 +57,7 @@ namespace udpdiscovery {
         }
 
 #if defined(_WIN32)
+        DeleteCriticalSection(&critical_section_);
 #else
         pthread_mutex_destroy(&mutex_);
 #endif
