@@ -18,5 +18,10 @@ set(DISCOVERY_EXAMPLE_SOURCES
 set(DISCOVERY_EXAMPLE_LIBS
 	udp-discovery)
 
+if(WIN32)
+set(DISCOVERY_EXAMPLE_LIBS ${DISCOVERY_EXAMPLE_LIBS}
+	Ws2_32)
+endif(WIN32)
+
 add_executable(udp-discovery-example ${DISCOVERY_EXAMPLE_SOURCES})
 target_link_libraries(udp-discovery-example ${DISCOVERY_EXAMPLE_LIBS})

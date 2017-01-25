@@ -36,15 +36,17 @@ const SocketType kInvalidSocket = -1;
 #include <stdint.h>
 #include <mach/mach_time.h>
 #endif
-#include <time.h>
+#if !defined(_WIN32)
 #include <sys/time.h>
+#endif
+#include <time.h>
 
 static
 long NowTime() {
 #if defined(_WIN32)
   __int64 freq = 0;
   if (!QueryPerformanceFrequency((LARGE_INTEGER *) &freq))
-    return time_point();
+    return 0;
   __int64 cur = 0;
   QueryPerformanceCounter((LARGE_INTEGER *) &cur);
   return (long) (cur / freq) * 1000;

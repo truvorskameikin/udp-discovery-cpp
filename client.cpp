@@ -73,7 +73,7 @@ namespace udpdiscovery {
         }
 
         int value = 1;
-        setsockopt(sock_, SOL_SOCKET, SO_BROADCAST, &value, sizeof(value));
+        setsockopt(sock_, SOL_SOCKET, SO_BROADCAST, (const char *) &value, sizeof(value));
 
         port_ = port;
         packet_index_ = 0;
