@@ -1,6 +1,7 @@
 #ifndef __UDP_DISCOVERY_CLIENT_H_
 #define __UDP_DISCOVERY_CLIENT_H_
 
+#include <stdint.h>
 #include <string>
 
 namespace udpdiscovery {
@@ -21,7 +22,7 @@ namespace udpdiscovery {
     Client();
     ~Client();
 
-    bool Start(int port, const std::string& user_data);
+    bool Start(int port, uint64_t application_id, const std::string& user_data);
 
     void SetUserData(const std::string& user_data);
 

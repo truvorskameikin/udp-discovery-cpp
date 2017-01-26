@@ -36,6 +36,7 @@ namespace udpdiscovery {
      public:
       ClientWorkingEnv()
           : port_(0),
+            application_id_(0),
             sock_(kInvalidSocket),
             packet_index_(0),
             max_packet_index_(1073741824),
@@ -63,7 +64,7 @@ namespace udpdiscovery {
 #endif
       }
 
-      bool StartClient(int port) {
+      bool StartClient(int port, uint64_t application_id) {
 #if defined(_WIN32)
         WSADATA wsa_data;
         WSAStartup(MAKEWORD(2, 2), &wsa_data);
@@ -79,6 +80,7 @@ namespace udpdiscovery {
         setsockopt(sock_, SOL_SOCKET, SO_BROADCAST, (const char *) &value, sizeof(value));
 
         port_ = port;
+        application_id_ = application_id;
         packet_index_ = 0;
 
         return true;
@@ -93,6 +95,7 @@ namespace udpdiscovery {
 
         header.packet_type = kPacketIAmHere;
 
+        header.application_id = application_id_;
         header.packet_index = packet_index_;
         if (header.packet_index >= max_packet_index_) {
           packet_index_ = 0;
@@ -137,6 +140,7 @@ namespace udpdiscovery {
 
      private:
       int port_;
+      uint64_t application_id_;
       SocketType sock_;
       uint64_t packet_index_;
       uint64_t max_packet_index_;
@@ -205,11 +209,11 @@ namespace udpdiscovery {
     Stop();
   }
 
-  bool Client::Start(int port, const std::string& user_data) {
+  bool Client::Start(int port, uint64_t application_id, const std::string& user_data) {
     Stop();
 
     impl::ClientWorkingEnv* working_env = new impl::ClientWorkingEnv();
-    if (!working_env->StartClient(port)) {
+    if (!working_env->StartClient(port, application_id)) {
       delete working_env;
       return false;
     }

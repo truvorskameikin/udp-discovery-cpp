@@ -60,6 +60,9 @@ namespace udpdiscovery {
   }
 
   bool MakePacket(const PacketHeader& header, const std::string& user_data, std::string& packet_data_out) {
+    if (user_data.size() > kMaxUserDataSize)
+      return false;
+
     if (sizeof(PacketHeader) + user_data.size() > kMaxPacketSize)
       return false;
 
@@ -71,6 +74,7 @@ namespace udpdiscovery {
 
     (*packet_header) = header;
     packet_header->MakeMagic();
+    StoreBigEndian(header.application_id, &packet_header->application_id);
     StoreBigEndian(header.packet_index, &packet_header->packet_index);
     StoreBigEndian(user_data_size, &packet_header->user_data_size);
     packet_header->reserved[0] = 0;
@@ -97,8 +101,12 @@ namespace udpdiscovery {
       return false;
 
     PacketHeader parsed_packet_header = (*header);
+    parsed_packet_header.application_id = ReadBigEndian<uint64_t>(&parsed_packet_header.application_id);
     parsed_packet_header.packet_index = ReadBigEndian<uint64_t>(&parsed_packet_header.packet_index);
     parsed_packet_header.user_data_size = ReadBigEndian<uint16_t>(&parsed_packet_header.user_data_size);
+
+    if (parsed_packet_header.user_data_size > kMaxUserDataSize)
+      return false;
 
     if (sizeof(PacketHeader) + parsed_packet_header.user_data_size > kMaxPacketSize)
       return false;

@@ -9,7 +9,8 @@
 #include <unistd.h>
 #endif
 
-const int PORT = 12021;
+const int kPort = 12021;
+const uint64_t kApplicationId = 5768141216339550557;
 
 void Usage(int argc, char* argv[]) {
   std::cout << "Usage: " << argv[0] << " {server|client|both} [user_data]" << std::endl;
@@ -37,7 +38,7 @@ int main(int argc, char* argv[]) {
 
   udpdiscovery::Server server;
   if (start_server) {
-    if (!server.Start(PORT))
+    if (!server.Start(kPort, kApplicationId))
       return 1;
   }
 
@@ -49,7 +50,7 @@ int main(int argc, char* argv[]) {
     }
 
     std::string user_data(argv[2]);
-    client.Start(PORT, user_data);
+    client.Start(kPort, kApplicationId, user_data);
   }
 
   std::list<udpdiscovery::DiscoveredClient> clients;

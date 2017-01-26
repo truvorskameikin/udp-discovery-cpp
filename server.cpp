@@ -69,7 +69,7 @@ namespace udpdiscovery {
   namespace impl {
     class ServerWorkingEnv : public ServerWorkingEnvInterface {
      public:
-      ServerWorkingEnv() : sock_(kInvalidSocket), exit_(false) {
+      ServerWorkingEnv() : application_id_(0), sock_(kInvalidSocket), exit_(false) {
 #if defined(_WIN32)
         InitializeCriticalSection(&critical_section_);
 #else
@@ -93,7 +93,7 @@ namespace udpdiscovery {
 #endif
       }
 
-      bool StartServer(int port) {
+      bool StartServer(int port, uint64_t application_id) {
 #if defined(_WIN32)
         WSADATA wsa_data;
         WSAStartup(MAKEWORD(2, 2), &wsa_data);
@@ -144,6 +144,7 @@ namespace udpdiscovery {
           return false;
         }
 
+        application_id_ = application_id;
         buffer_.resize(kMaxPacketSize);
 
         return true;
@@ -169,43 +170,45 @@ namespace udpdiscovery {
         if (length >= sizeof(PacketHeader)) {
           PacketHeader header;
           if (ParsePacketHeader(buffer_.data(), sizeof(PacketHeader), header)) {
-            std::string user_data(
-              buffer_.begin() + sizeof(PacketHeader), buffer_.begin() + sizeof(PacketHeader) + header.user_data_size);
+            if (application_id_ == header.application_id) {
+              std::string user_data(
+                buffer_.begin() + sizeof(PacketHeader), buffer_.begin() + sizeof(PacketHeader) + header.user_data_size);
 
-            lock();
+              lock();
 
-            std::list<DiscoveredClient>::iterator find_it = discovered_clients_.end();
-            for (std::list<DiscoveredClient>::iterator it = discovered_clients_.begin(); it != discovered_clients_.end(); ++it) {
-              if (Same((*it).ip_port(), from)) {
-                find_it = it;
-                break;
+              std::list<DiscoveredClient>::iterator find_it = discovered_clients_.end();
+              for (std::list<DiscoveredClient>::iterator it = discovered_clients_.begin(); it != discovered_clients_.end(); ++it) {
+                if (Same((*it).ip_port(), from)) {
+                  find_it = it;
+                  break;
+                }
               }
-            }
 
-            long cur_time = NowTime();
+              long cur_time = NowTime();
 
-            if (find_it == discovered_clients_.end()) {
-              discovered_clients_.push_back(DiscoveredClient());
-              discovered_clients_.back().set_ip_port(from);
-              discovered_clients_.back().SetUserData(user_data, header.packet_index);
-              discovered_clients_.back().set_last_updated(cur_time);
-            } else {
-              bool new_user_data = false;
-              if (header.packet_index_reset) {
-                new_user_data = true;
+              if (find_it == discovered_clients_.end()) {
+                discovered_clients_.push_back(DiscoveredClient());
+                discovered_clients_.back().set_ip_port(from);
+                discovered_clients_.back().SetUserData(user_data, header.packet_index);
+                discovered_clients_.back().set_last_updated(cur_time);
               } else {
-                if ((*find_it).last_received_packet() < header.packet_index)
+                bool new_user_data = false;
+                if (header.packet_index_reset) {
                   new_user_data = true;
+                } else {
+                  if ((*find_it).last_received_packet() < header.packet_index)
+                    new_user_data = true;
+                }
+
+                if (new_user_data)
+                  (*find_it).SetUserData(user_data, header.packet_index);
+                (*find_it).set_last_updated(cur_time);
               }
 
-              if (new_user_data)
-                (*find_it).SetUserData(user_data, header.packet_index);
-              (*find_it).set_last_updated(cur_time);
+              deleteIdle(cur_time);
+
+              unlock();
             }
-
-            deleteIdle(cur_time);
-
-            unlock();
           }
         }
       }
@@ -247,6 +250,7 @@ namespace udpdiscovery {
       }
 
      private:
+      uint64_t application_id_;
       std::string buffer_;
       SocketType sock_;
 
@@ -307,11 +311,11 @@ namespace udpdiscovery {
     Stop();
   }
 
-  bool Server::Start(int port) {
+  bool Server::Start(int port, uint64_t application_id) {
     Stop();
 
     impl::ServerWorkingEnv* working_env = new impl::ServerWorkingEnv();
-    if (!working_env->StartServer(port)) {
+    if (!working_env->StartServer(port, application_id)) {
       delete working_env;
       return false;
     }
