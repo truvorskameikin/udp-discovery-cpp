@@ -44,12 +44,12 @@ const SocketType kInvalidSocket = -1;
 static
 long NowTime() {
 #if defined(_WIN32)
-  __int64 freq = 0;
-  if (!QueryPerformanceFrequency((LARGE_INTEGER *) &freq))
+  LARGE_INTEGER freq;
+  if (!QueryPerformanceFrequency(&freq))
     return 0;
-  __int64 cur = 0;
-  QueryPerformanceCounter((LARGE_INTEGER *) &cur);
-  return (long) (cur / freq) * 1000;
+  LARGE_INTEGER cur;
+  QueryPerformanceCounter(&cur);
+  return (long) (cur.QuadPart * 1000 / freq.QuadPart);
 #elif defined(__APPLE__)
   mach_timebase_info_data_t time_info;
   mach_timebase_info(&time_info);
