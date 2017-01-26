@@ -20,6 +20,7 @@ namespace udpdiscovery {
 
     unsigned char magic[4];
     unsigned char packet_type;
+    uint64_t application_id;
     uint64_t packet_index;
     unsigned char packet_index_reset;
     uint16_t user_data_size;
@@ -28,6 +29,7 @@ namespace udpdiscovery {
 #pragma pack(pop)
 
   const size_t kMaxPacketSize = 65536;
+  const size_t kMaxUserDataSize = 32768;
 
   bool MakePacket(const PacketHeader& header, const std::string& user_data, std::string& packet_data_out);
 

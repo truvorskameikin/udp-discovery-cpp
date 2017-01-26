@@ -1,6 +1,7 @@
 #ifndef __UDP_DISCOVERY_SERVER_H_
 #define __UDP_DISCOVERY_SERVER_H_
 
+#include <stdint.h>
 #include <list>
 #include "discovered_client.hpp"
 
@@ -22,7 +23,7 @@ namespace udpdiscovery {
     Server();
     ~Server();
 
-    bool Start(int port);
+    bool Start(int port, uint64_t application_id);
 
     std::list<DiscoveredClient> ListClients() const;
 
