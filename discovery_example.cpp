@@ -1,3 +1,4 @@
+#include <string.h>
 #include <map>
 #include <iostream>
 #include "endpoint.hpp"
