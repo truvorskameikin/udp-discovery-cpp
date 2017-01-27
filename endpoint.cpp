@@ -389,7 +389,7 @@ namespace udpdiscovery {
     class MinimalisticThread : public MinimalisticThreadInterface {
      public:
 #if defined(_WIN32)
-      MinimalisticThread(void (*f)(void*), void* env) : detached_(false) {
+      MinimalisticThread(LPTHREAD_START_ROUTINE f, void* env) : detached_(false) {
         thread_ = CreateThread(NULL, 0, f, env, 0, NULL);
       }
 #else
@@ -437,9 +437,11 @@ namespace udpdiscovery {
     };
 
 #if defined(_WIN32)
-    void EndpointWork(void* env_typeless) {
+    DWORD WINAPI EndpointWork(void* env_typeless) {
       EndpointEnv* env = (EndpointEnv*) env_typeless;
       env->DoWork();
+
+	  return 0;
     }
 #else
     void* EndpointWork(void* env_typeless) {
