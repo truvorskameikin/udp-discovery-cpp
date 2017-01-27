@@ -6,7 +6,8 @@
 
 namespace udpdiscovery {
   enum PacketType {
-    kPacketIAmHere
+    kPacketIAmHere,
+    kPacketIAmOutOfHere
   };
 
 #pragma pack(push)
@@ -28,8 +29,8 @@ namespace udpdiscovery {
   };
 #pragma pack(pop)
 
-  const size_t kMaxPacketSize = 65536;
   const size_t kMaxUserDataSize = 32768;
+  const size_t kMaxPacketSize = 65536;
 
   bool MakePacket(const PacketHeader& header, const std::string& user_data, std::string& packet_data_out);
 

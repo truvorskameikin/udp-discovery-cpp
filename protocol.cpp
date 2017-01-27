@@ -63,9 +63,6 @@ namespace udpdiscovery {
     if (user_data.size() > kMaxUserDataSize)
       return false;
 
-    if (sizeof(PacketHeader) + user_data.size() > kMaxPacketSize)
-      return false;
-
     uint16_t user_data_size = (uint16_t) user_data.size();
 
     packet_data_out.resize(sizeof(PacketHeader) + user_data.size());
@@ -97,7 +94,7 @@ namespace udpdiscovery {
     if (!header->TestMagic())
       return false;
 
-    if (header->packet_type != kPacketIAmHere)
+    if (header->packet_type != kPacketIAmHere && header->packet_type != kPacketIAmOutOfHere)
       return false;
 
     PacketHeader parsed_packet_header = (*header);
@@ -106,9 +103,6 @@ namespace udpdiscovery {
     parsed_packet_header.user_data_size = ReadBigEndian<uint16_t>(&parsed_packet_header.user_data_size);
 
     if (parsed_packet_header.user_data_size > kMaxUserDataSize)
-      return false;
-
-    if (sizeof(PacketHeader) + parsed_packet_header.user_data_size > kMaxPacketSize)
       return false;
 
     header_out = parsed_packet_header;

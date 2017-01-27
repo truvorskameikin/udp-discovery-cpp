@@ -6,23 +6,17 @@
 namespace udpdiscovery {
   class IpPort {
    public:
-    IpPort() : ip_("0.0.0.0"), port_(0) {
+    IpPort() : ip_(0), port_(0) {
     }
 
-    IpPort(const std::string& ip, int port) : ip_(ip), port_(port) {
+    IpPort(unsigned int ip, int port) : ip_(ip), port_(port) {
     }
 
-    IpPort(unsigned int ip, int port) : port_(port) {
-      set_ip(ip);
-    }
-
-    void set_ip(const std::string& ip) {
+    void set_ip(unsigned int ip) {
       ip_ = ip;
     }
 
-    void set_ip(unsigned int ip);
-
-    const std::string& ip() const {
+    unsigned int ip() const {
       return ip_;
     }
 
@@ -38,10 +32,20 @@ namespace udpdiscovery {
       return ip_ == rhv.ip_ && port_ == rhv.port_;
     }
 
+    bool operator<(const IpPort& rhv) const {
+      if (ip_ < rhv.ip_)
+        return true;
+      else if (ip_ > rhv.ip_)
+        return false;
+      return port_ < rhv.port_;
+    }
+
    private:
-    std::string ip_;
+    unsigned int ip_;
     int port_;
   };
+
+  std::string IpToString(unsigned int ip);
 };
 
 #endif

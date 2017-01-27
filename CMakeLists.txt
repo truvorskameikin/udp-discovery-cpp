@@ -1,15 +1,13 @@
 cmake_minimum_required(VERSION 3.4)
 
 set(LIB_SOURCES
-	client.cpp
+	endpoint.cpp
 	ip_port.cpp
-	protocol.cpp
-	server.cpp)
+	protocol.cpp)
 set(LIB_HEADERS
-	client.hpp
+	endpoint.hpp
 	ip_port.hpp
-	protocol.hpp
-	server.hpp)
+	protocol.hpp)
 
 add_library(udp-discovery STATIC ${LIB_SOURCES} ${LIB_HEADERS})
 
