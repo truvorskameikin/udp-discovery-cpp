@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <string.h>
 #include <vector>
 #include <iostream>
@@ -144,6 +145,13 @@ long NowTime() {
 
 namespace udpdiscovery {
   namespace impl {
+    uint64_t MakeRandomId() {
+      srand(time(0));
+      uint64_t r1 = rand();
+      uint64_t r2 = rand();
+      return ((r1 & 0xffffffff) < 32) | (r2 & 0xffffffff);
+    }
+
     class EndpointEnv : public EndpointEnvInterface {
      public:
       EndpointEnv()
@@ -160,6 +168,8 @@ namespace udpdiscovery {
       bool Start(const EndpointParameters& parameters, const std::string& user_data) {
         parameters_ = parameters;
         user_data_ = user_data;
+
+        endpoint_id_ = MakeRandomId();
 
         if (!parameters_.can_discover() && !parameters_.can_be_discovered()) {
           std::cerr << "udpdiscovery::Endpoint can't discover and can't be discovered" << std::endl;
@@ -280,7 +290,17 @@ namespace udpdiscovery {
         if (length >= sizeof(PacketHeader)) {
           PacketHeader header;
           if (ParsePacketHeader(buffer_.data(), sizeof(PacketHeader), header)) {
+            bool accept_packet = false;
             if (parameters_.application_id() == header.application_id) {
+              if (!parameters_.discover_self()) {
+                if (header.peer_id != endpoint_id_)
+                  accept_packet = true;
+              } else {
+                accept_packet = true;
+              }
+            }
+
+            if (accept_packet) {
               std::string user_data(
                 buffer_.begin() + sizeof(PacketHeader), buffer_.begin() + sizeof(PacketHeader) + header.user_data_size);
 
@@ -352,6 +372,7 @@ namespace udpdiscovery {
         header.packet_type = packet_type;
 
         header.application_id = parameters_.application_id();
+        header.peer_id = endpoint_id_;
         header.packet_index = packet_index_;
         if (header.packet_index >= max_packet_index_) {
           packet_index_ = 0;
@@ -376,6 +397,7 @@ namespace udpdiscovery {
 
      private:
       EndpointParameters parameters_;
+      uint64_t endpoint_id_;
       std::vector<char> buffer_;
       SocketType sock_;
       uint64_t packet_index_;

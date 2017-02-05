@@ -20,6 +20,7 @@ namespace udpdiscovery {
           discovered_endpoint_ttl_ms_(10000),
           can_be_discovered_(false),
           can_discover_(false),
+          discover_self_(false),
           same_endpoint_mode_(kSameEndpointIpAndPort) {
     }
 
@@ -85,6 +86,14 @@ namespace udpdiscovery {
       can_discover_ = can_discover;
     }
 
+    bool discover_self() const {
+      return discover_self_;
+    }
+
+    void set_discover_self(bool discover_self) {
+      discover_self_ = discover_self;
+    }
+
     SameEndpointMode same_endpoint_mode() const {
       return same_endpoint_mode_;
     }
@@ -101,6 +110,7 @@ namespace udpdiscovery {
     int discovered_endpoint_ttl_ms_;
     bool can_be_discovered_;
     bool can_discover_;
+    bool discover_self_;
     SameEndpointMode same_endpoint_mode_;
   };
 };

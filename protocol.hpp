@@ -22,6 +22,7 @@ namespace udpdiscovery {
     unsigned char magic[4];
     unsigned char packet_type;
     uint64_t application_id;
+    uint64_t peer_id;
     uint64_t packet_index;
     unsigned char packet_index_reset;
     uint16_t user_data_size;

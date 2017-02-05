@@ -72,6 +72,7 @@ namespace udpdiscovery {
     (*packet_header) = header;
     packet_header->MakeMagic();
     StoreBigEndian(header.application_id, &packet_header->application_id);
+    StoreBigEndian(header.peer_id, &packet_header->peer_id);
     StoreBigEndian(header.packet_index, &packet_header->packet_index);
     StoreBigEndian(user_data_size, &packet_header->user_data_size);
     packet_header->reserved[0] = 0;
@@ -99,6 +100,7 @@ namespace udpdiscovery {
 
     PacketHeader parsed_packet_header = (*header);
     parsed_packet_header.application_id = ReadBigEndian<uint64_t>(&parsed_packet_header.application_id);
+    parsed_packet_header.peer_id = ReadBigEndian<uint64_t>(&parsed_packet_header.peer_id);
     parsed_packet_header.packet_index = ReadBigEndian<uint64_t>(&parsed_packet_header.packet_index);
     parsed_packet_header.user_data_size = ReadBigEndian<uint16_t>(&parsed_packet_header.user_data_size);
 
