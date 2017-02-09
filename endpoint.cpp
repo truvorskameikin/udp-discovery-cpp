@@ -24,6 +24,7 @@ typedef socklen_t AddressLenType;
 const SocketType kInvalidSocket = -1;
 #endif
 
+static
 void InitSockets() {
 #if defined(_WIN32)
   WSADATA wsa_data;
@@ -31,6 +32,7 @@ void InitSockets() {
 #endif
 }
 
+static
 void CloseSocket(SocketType sock) {
 #if defined(_WIN32)
   closesocket(sock);
@@ -39,6 +41,7 @@ void CloseSocket(SocketType sock) {
 #endif
 }
 
+static
 void SetSocketTimeout(SocketType sock, int param, int timeout_ms) {
 #if defined(_WIN32)
     setsockopt(sock, SOL_SOCKET, param, (const char *) &timeout_ms, sizeof(timeout_ms));
@@ -59,6 +62,7 @@ void SetSocketTimeout(SocketType sock, int param, int timeout_ms) {
 #include <pthread.h>
 #endif
 
+static
 void SleepFor(int time_ms) {
 #if defined(_WIN32)
   Sleep(time_ms);
