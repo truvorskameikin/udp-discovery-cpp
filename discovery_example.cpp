@@ -15,6 +15,11 @@ const uint32_t kApplicationId = 3871252004;
 
 void Usage(int argc, char* argv[]) {
   std::cout << "Usage: " << argv[0] << " {discover|discoverable|both} [user_data]" << std::endl;
+  std::cout << std::endl;
+  std::cout << "discover - this instance will have the ability to only discover other instances" << std::endl;
+  std::cout << "discoverable - this instance will have the ability to only be discovered by other instances" << std::endl;
+  std::cout << "both - this instance will be able to discover and to be discovered by other instances" << std::endl;
+  std::cout << "user_data - the string sent when broadcasting, shown next to peer's IP" << std::endl;
 }
 
 int main(int argc, char* argv[]) {
