@@ -149,11 +149,9 @@ long NowTime() {
 
 namespace udpdiscovery {
   namespace impl {
-    uint64_t MakeRandomId() {
+    uint32_t MakeRandomId() {
       srand(time(0));
-      uint64_t r1 = rand();
-      uint64_t r2 = rand();
-      return ((r1 & 0xffffffff) < 32) | (r2 & 0xffffffff);
+      return (uint32_t) rand();
     }
 
     class EndpointEnv : public EndpointEnvInterface {
@@ -161,7 +159,7 @@ namespace udpdiscovery {
       EndpointEnv()
           : sock_(kInvalidSocket),
             packet_index_(0),
-            max_packet_index_(1073741824),
+            max_packet_index_(1048576),
             exit_(false) {
       }
 
@@ -293,7 +291,9 @@ namespace udpdiscovery {
 
         if (length >= sizeof(PacketHeader)) {
           PacketHeader header;
-          if (ParsePacketHeader(buffer_.data(), sizeof(PacketHeader), header)) {
+          std::string user_data;
+
+          if (ParsePacket(buffer_.data(), length, header, user_data)) {
             bool accept_packet = false;
             if (parameters_.application_id() == header.application_id) {
               if (!parameters_.discover_self()) {
@@ -305,9 +305,6 @@ namespace udpdiscovery {
             }
 
             if (accept_packet) {
-              std::string user_data(
-                buffer_.begin() + sizeof(PacketHeader), buffer_.begin() + sizeof(PacketHeader) + header.user_data_size);
-
               lock_.Lock();
 
               std::list<DiscoveredEndpoint>::iterator find_it = discovered_endpoints_.end();
@@ -401,11 +398,11 @@ namespace udpdiscovery {
 
      private:
       EndpointParameters parameters_;
-      uint64_t endpoint_id_;
+      uint32_t endpoint_id_;
       std::vector<char> buffer_;
       SocketType sock_;
-      uint64_t packet_index_;
-      uint64_t max_packet_index_;
+      uint32_t packet_index_;
+      uint32_t max_packet_index_;
 
       MinimalisticMutex lock_;
       bool exit_;

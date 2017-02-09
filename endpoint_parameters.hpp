@@ -32,11 +32,11 @@ namespace udpdiscovery {
       port_ = port;
     }
 
-    uint64_t application_id() const {
+    uint32_t application_id() const {
       return application_id_;
     }
 
-    void set_application_id(uint64_t application_id) {
+    void set_application_id(uint32_t application_id) {
       application_id_ = application_id;
     }
 
@@ -104,7 +104,7 @@ namespace udpdiscovery {
 
    private:
     int port_;
-    uint64_t application_id_;
+    uint32_t application_id_;
     int receive_timeout_ms_;
     int send_timeout_ms_;
     int discovered_endpoint_ttl_ms_;
