@@ -5,6 +5,7 @@ A small library to add local network discovery feature to your C++ programs with
 This library uses [CMake](https://cmake.org/) to build udp-discovery library and example. To build both library and example one should do:
 <pre>
   mkdir build
+  cd build
   cmake ..
   make
 </pre>
@@ -31,7 +32,7 @@ This library has no dependencies.
   user_data - the string sent when broadcasting, shown next to peer's IP
 </pre>
 
-When the example program is run in *discoverable* mode it enters CLI mode waiting for user's commands. The commands are:
+When the example program is run in *discoverable* mode it enters CLI mode waiting for user's commands:
 <pre>
   > help
   commands are: help, user_data, exit
