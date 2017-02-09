@@ -1,8 +1,6 @@
 #include <algorithm>
 #include "protocol.hpp"
 
-#include <iostream>
-
 template<typename ValueType>
 void StoreBigEndian(ValueType value, void* out) {
   unsigned char* out_typed = (unsigned char*) out;
