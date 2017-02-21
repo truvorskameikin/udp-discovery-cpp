@@ -23,6 +23,8 @@ endif(WIN32)
 
 if(UNIX)
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pthread")
+set(DISCOVERY_EXAMPLE_LIBS ${DISCOVERY_EXAMPLE_LIBS}
+	rt)
 endif(UNIX)
 
 add_executable(udp-discovery-example ${DISCOVERY_EXAMPLE_SOURCES})
