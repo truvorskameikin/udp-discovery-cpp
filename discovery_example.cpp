@@ -11,7 +11,7 @@
 #endif
 
 const int kPort = 12021;
-const uint64_t kApplicationId = 5768141216339550557;
+const uint64_t kApplicationId = 5768141216;
 
 void Usage(int argc, char* argv[]) {
   std::cout << "Usage: " << argv[0] << " {discover|discoverable|both} [user_data]" << std::endl;
