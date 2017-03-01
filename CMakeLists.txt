@@ -21,9 +21,16 @@ set(DISCOVERY_EXAMPLE_LIBS ${DISCOVERY_EXAMPLE_LIBS}
 	Ws2_32)
 endif(WIN32)
 
-if(UNIX)
+if(APPLE)
+elseif(UNIX)
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pthread")
-endif(UNIX)
+endif()
+
+if(APPLE)
+elseif(UNIX)
+set(DISCOVERY_EXAMPLE_LIBS ${DISCOVERY_EXAMPLE_LIBS}
+	rt)
+endif()
 
 add_executable(udp-discovery-example ${DISCOVERY_EXAMPLE_SOURCES})
 target_link_libraries(udp-discovery-example ${DISCOVERY_EXAMPLE_LIBS})
