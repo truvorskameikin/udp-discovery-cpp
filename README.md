@@ -1,3 +1,4 @@
+[![Build Status](https://travis-ci.org/truvorskameikin/udp-discovery-cpp.svg?branch=develop)](https://travis-ci.org/truvorskameikin/udp-discovery-cpp)
 # Local network UDP discovery for C++
 A small library to add local network discovery feature to your C++ programs with no dependencies
 
