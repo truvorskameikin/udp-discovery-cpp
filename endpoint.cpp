@@ -150,7 +150,7 @@ long NowTime() {
 namespace udpdiscovery {
   namespace impl {
     uint32_t MakeRandomId() {
-      srand(time(0));
+      srand((unsigned int) time(0));
       return (uint32_t) rand();
     }
 
