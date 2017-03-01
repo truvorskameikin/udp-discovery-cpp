@@ -1,2 +1,6 @@
 language: cpp
-script: cmake
+compiler:
+  - gcc
+  - clang
+script:
+  - cmake && make
