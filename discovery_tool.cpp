@@ -12,6 +12,8 @@
 
 void Usage(int argc, char* argv[]) {
   std::cout << "Usage: " << argv[0] << " application_id port" << std::endl;
+  std::cout << "  application_id - integer id of application to discover" << std::endl;
+  std::cout << "  port - port used by application" << std::endl;
 }
 
 int main(int argc, char* argv[]) {
