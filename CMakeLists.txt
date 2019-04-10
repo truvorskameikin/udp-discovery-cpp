@@ -39,7 +39,7 @@ set(DISCOVERY_TOOL_LIBS ${DISCOVERY_TOOL_LIBS}
 	rt)
 endif()
 
-if(NOT "${UPD_DISCOVERY_NO_EXECUTABLES}" STREQUAL "1")
+if(NOT "${UDP_DISCOVERY_NO_EXECUTABLES}" STREQUAL "1")
 	add_executable(udp-discovery-example ${DISCOVERY_EXAMPLE_SOURCES})
 	target_link_libraries(udp-discovery-example ${DISCOVERY_EXAMPLE_LIBS})
 
