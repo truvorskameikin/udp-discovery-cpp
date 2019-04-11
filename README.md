@@ -8,7 +8,7 @@ This library uses [CMake](https://cmake.org/) to build static library, examples 
 cd udp-discovery-cpp
 mkdir build
 cd build
-cmake ..
+cmake -DBUILD_EXAMPLE=ON -DBUILD_TOOL=ON ..
 make
 </pre>
 

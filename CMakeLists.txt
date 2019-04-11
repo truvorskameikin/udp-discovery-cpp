@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8)
 
-option( BUILD_EXAMPLE "Build example application."                  ON )
-option( BUILD_TOOL    "Build udp-discovery-tool application."       ON )
+option(BUILD_EXAMPLE "Build example application." OFF)
+option(BUILD_TOOL "Build udp-discovery-tool application." OFF)
 
 set(LIB_SOURCES
 	endpoint.cpp
