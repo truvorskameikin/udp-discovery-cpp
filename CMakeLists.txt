@@ -14,14 +14,14 @@ set(LIB_HEADERS
 
 add_library(udp-discovery STATIC ${LIB_SOURCES} ${LIB_HEADERS})
 
-if ( BUILD_EXAMPLE OR BUILD_TOOL )
+if(BUILD_EXAMPLE OR BUILD_TOOL)
 	if(APPLE)
 	elseif(UNIX)
 		set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pthread")
 	endif()
 endif()
 
-if ( BUILD_EXAMPLE )
+if(BUILD_EXAMPLE)
 	set(DISCOVERY_EXAMPLE_SOURCES discovery_example.cpp)
 	set(DISCOVERY_EXAMPLE_LIBS udp-discovery)
 
@@ -38,7 +38,7 @@ if ( BUILD_EXAMPLE )
 	target_link_libraries(udp-discovery-example ${DISCOVERY_EXAMPLE_LIBS})
 endif()
 
-if ( BUILD_TOOL )
+if(BUILD_TOOL)
 	set(DISCOVERY_TOOL_SOURCES discovery_tool.cpp)
 	set(DISCOVERY_TOOL_LIBS udp-discovery)
 
