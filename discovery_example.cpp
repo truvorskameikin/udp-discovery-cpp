@@ -76,7 +76,7 @@ int main(int argc, char* argv[]) {
 
         std::cout << "Discovered endpoints: " << discovered_endpoints.size() << std::endl;
         for (std::list<udpdiscovery::DiscoveredEndpoint>::const_iterator it = discovered_endpoints.begin(); it != discovered_endpoints.end(); ++it)
-          std::cout << " - " << udpdiscovery::IpToString((*it).ip_port().ip()) << ", " << (*it).user_data() << std::endl;
+          std::cout << " - " << udpdiscovery::IpPortToString((*it).ip_port()) << ", " << (*it).user_data() << std::endl;
       } else {
         bool same_user_datas = true;
         for (std::list<udpdiscovery::DiscoveredEndpoint>::const_iterator it = new_discovered_endpoints.begin(); it != new_discovered_endpoints.end(); ++it) {

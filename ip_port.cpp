@@ -8,4 +8,13 @@ namespace udpdiscovery {
 
     return ss.str();
   }
+
+  std::string IpPortToString(const IpPort& ip_port) {
+    std::string ip_string = IpToString(ip_port.ip());
+
+    std::stringstream ss;
+    ss << ip_port.port();
+
+    return ip_string + ":" + ss.str();
+  }
 };
