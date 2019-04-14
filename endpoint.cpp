@@ -202,8 +202,8 @@ namespace udpdiscovery {
           if (binding_sock_ == kInvalidSocket) {
             std::cerr << "udpdiscovery::Endpoint can't create binding socket" << std::endl;
 
-            CloseSocket(binding_sock_);
-            binding_sock_ = kInvalidSocket;
+            CloseSocket(sock_);
+            sock_ = kInvalidSocket;
           }
 
           {
