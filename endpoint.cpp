@@ -157,14 +157,18 @@ namespace udpdiscovery {
     class EndpointEnv : public EndpointEnvInterface {
      public:
       EndpointEnv()
-          : sock_(kInvalidSocket),
+          : binding_sock_(kInvalidSocket),
+            sock_(kInvalidSocket),
             packet_index_(0),
             max_packet_index_(1048576),
             exit_(false) {
       }
 
       ~EndpointEnv() {
-        CloseSocket(sock_);
+        if (binding_sock_ != kInvalidSocket)
+          CloseSocket(binding_sock_);
+        if (sock_ != kInvalidSocket)
+          CloseSocket(sock_);
       }
 
       bool Start(const EndpointParameters& parameters, const std::string& user_data) {
@@ -191,13 +195,27 @@ namespace udpdiscovery {
           setsockopt(sock_, SOL_SOCKET, SO_BROADCAST, (const char *) &value, sizeof(value));
         }
 
+        SetSocketTimeout(sock_, SO_RCVTIMEO, parameters_.receive_timeout_ms());
+
         if (parameters_.can_discover()) {
-          {
-            int value = 1;
-            setsockopt(sock_, SOL_SOCKET, SO_REUSEADDR, (const char *) &value, sizeof(value));
+          binding_sock_ = socket(AF_INET, SOCK_DGRAM, 0);
+          if (binding_sock_ == kInvalidSocket) {
+            std::cerr << "udpdiscovery::Endpoint can't create binding socket" << std::endl;
+
+            CloseSocket(binding_sock_);
+            binding_sock_ = kInvalidSocket;
           }
 
-          SetSocketTimeout(sock_, SO_RCVTIMEO, parameters_.receive_timeout_ms());
+          {
+            int reuse_addr = 1;
+            setsockopt(binding_sock_, SOL_SOCKET, SO_REUSEADDR, (const char *) &reuse_addr, sizeof(reuse_addr));
+#ifdef SO_REUSEPORT
+            int reuse_port = 1;
+            setsockopt(binding_sock_, SOL_SOCKET, SO_REUSEPORT, (const char *) &reuse_port, sizeof(reuse_port));
+#endif
+          }
+
+          SetSocketTimeout(binding_sock_, SO_RCVTIMEO, parameters_.receive_timeout_ms());
 
           sockaddr_in addr;
           memset((char *) &addr, 0, sizeof(sockaddr_in));
@@ -205,16 +223,19 @@ namespace udpdiscovery {
           addr.sin_port = htons(parameters_.port());
           addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
-          if (bind(sock_, (struct sockaddr *) &addr, sizeof(sockaddr_in)) < 0) {
+          if (bind(binding_sock_, (struct sockaddr *) &addr, sizeof(sockaddr_in)) < 0) {
+            CloseSocket(binding_sock_);
+            binding_sock_ = kInvalidSocket;
+
             CloseSocket(sock_);
             sock_ = kInvalidSocket;
 
             std::cerr << "udpdiscovery::Endpoint can't bind socket" << std::endl;
             return false;
           }
-
-          buffer_.resize(kMaxPacketSize);
         }
+
+        buffer_.resize(kMaxPacketSize);
 
         return true;
       }
@@ -280,20 +301,50 @@ namespace udpdiscovery {
       void receive() {
         sockaddr_in from_addr;
         AddressLenType addr_length = sizeof(sockaddr_in);
+        bool received_packet = false;
 
-        int length = (int) recvfrom(sock_, &buffer_[0], buffer_.size(), 0, (struct sockaddr *) &from_addr, &addr_length);
-        if (length <= 0)
-          return;
+        int length = (int) recvfrom(binding_sock_, &buffer_[0], buffer_.size(), 0, (struct sockaddr *) &from_addr, &addr_length);
+        if (length <= 0) {
+          length = (int) recvfrom(sock_, &buffer_[0], buffer_.size(), 0, (struct sockaddr *) &from_addr, &addr_length);
+          if (length <= 0) {
+            return;
+          } else {
+            received_packet = true;
+          }
+        } else {
+          received_packet = true;
+        }
 
-        IpPort from;
-        from.set_port(ntohs(from_addr.sin_port));
-        from.set_ip(ntohl(from_addr.sin_addr.s_addr));
+        if (received_packet) {
+          IpPort from;
+          from.set_port(ntohs(from_addr.sin_port));
+          from.set_ip(ntohl(from_addr.sin_addr.s_addr));
 
-        if (length >= sizeof(PacketHeader)) {
+          processReceivedBuffer(from, length);
+        }
+      }
+
+      void deleteIdle(long cur_time) {
+        lock_.Lock();
+
+        std::vector<std::list<DiscoveredEndpoint>::iterator> to_delete;
+        for (std::list<DiscoveredEndpoint>::iterator it = discovered_endpoints_.begin(); it != discovered_endpoints_.end(); ++it) {
+          if (cur_time - (*it).last_updated() > parameters_.discovered_endpoint_ttl_ms())
+            to_delete.push_back(it);
+        }
+
+        for (size_t i = 0; i < to_delete.size(); ++i)
+          discovered_endpoints_.erase(to_delete[i]);
+
+        lock_.Unlock();
+      }
+
+      void processReceivedBuffer(const IpPort& from, int packet_length) {
+        if (packet_length >= sizeof(PacketHeader)) {
           PacketHeader header;
           std::string user_data;
 
-          if (ParsePacket(buffer_.data(), length, header, user_data)) {
+          if (ParsePacket(buffer_.data(), packet_length, header, user_data)) {
             bool accept_packet = false;
             if (parameters_.application_id() == header.application_id) {
               if (!parameters_.discover_self()) {
@@ -348,21 +399,6 @@ namespace udpdiscovery {
         }
       }
 
-      void deleteIdle(long cur_time) {
-        lock_.Lock();
-
-        std::vector<std::list<DiscoveredEndpoint>::iterator> to_delete;
-        for (std::list<DiscoveredEndpoint>::iterator it = discovered_endpoints_.begin(); it != discovered_endpoints_.end(); ++it) {
-          if (cur_time - (*it).last_updated() > parameters_.discovered_endpoint_ttl_ms())
-            to_delete.push_back(it);
-        }
-
-        for (size_t i = 0; i < to_delete.size(); ++i)
-          discovered_endpoints_.erase(to_delete[i]);
-
-        lock_.Unlock();
-      }
-
       void send(PacketType packet_type) {
         lock_.Lock();
         std::string user_data = user_data_;
@@ -400,6 +436,7 @@ namespace udpdiscovery {
       EndpointParameters parameters_;
       uint32_t endpoint_id_;
       std::vector<char> buffer_;
+      SocketType binding_sock_;
       SocketType sock_;
       uint32_t packet_index_;
       uint32_t max_packet_index_;
@@ -465,7 +502,7 @@ namespace udpdiscovery {
       EndpointEnv* env = (EndpointEnv*) env_typeless;
       env->DoWork();
 
-	  return 0;
+      return 0;
     }
 #else
     void* EndpointWork(void* env_typeless) {
