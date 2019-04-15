@@ -301,42 +301,16 @@ namespace udpdiscovery {
       void receive() {
         sockaddr_in from_addr;
         AddressLenType addr_length = sizeof(sockaddr_in);
-        bool received_packet = false;
 
         int length = (int) recvfrom(binding_sock_, &buffer_[0], buffer_.size(), 0, (struct sockaddr *) &from_addr, &addr_length);
-        if (length <= 0) {
-          length = (int) recvfrom(sock_, &buffer_[0], buffer_.size(), 0, (struct sockaddr *) &from_addr, &addr_length);
-          if (length <= 0) {
-            return;
-          } else {
-            received_packet = true;
-          }
-        } else {
-          received_packet = true;
-        }
+        if (length <= 0)
+          return;
 
-        if (received_packet) {
-          IpPort from;
-          from.set_port(ntohs(from_addr.sin_port));
-          from.set_ip(ntohl(from_addr.sin_addr.s_addr));
+        IpPort from;
+        from.set_port(ntohs(from_addr.sin_port));
+        from.set_ip(ntohl(from_addr.sin_addr.s_addr));
 
-          processReceivedBuffer(from, length);
-        }
-      }
-
-      void deleteIdle(long cur_time) {
-        lock_.Lock();
-
-        std::vector<std::list<DiscoveredEndpoint>::iterator> to_delete;
-        for (std::list<DiscoveredEndpoint>::iterator it = discovered_endpoints_.begin(); it != discovered_endpoints_.end(); ++it) {
-          if (cur_time - (*it).last_updated() > parameters_.discovered_endpoint_ttl_ms())
-            to_delete.push_back(it);
-        }
-
-        for (size_t i = 0; i < to_delete.size(); ++i)
-          discovered_endpoints_.erase(to_delete[i]);
-
-        lock_.Unlock();
+        processReceivedBuffer(from, length);
       }
 
       void processReceivedBuffer(const IpPort& from, int packet_length) {
@@ -397,6 +371,21 @@ namespace udpdiscovery {
             }
           }
         }
+      }
+
+      void deleteIdle(long cur_time) {
+        lock_.Lock();
+
+        std::vector<std::list<DiscoveredEndpoint>::iterator> to_delete;
+        for (std::list<DiscoveredEndpoint>::iterator it = discovered_endpoints_.begin(); it != discovered_endpoints_.end(); ++it) {
+          if (cur_time - (*it).last_updated() > parameters_.discovered_endpoint_ttl_ms())
+            to_delete.push_back(it);
+        }
+
+        for (size_t i = 0; i < to_delete.size(); ++i)
+          discovered_endpoints_.erase(to_delete[i]);
+
+        lock_.Unlock();
       }
 
       void send(PacketType packet_type) {
