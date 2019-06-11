@@ -1,11 +1,11 @@
-#ifndef __DISCOVERY_DISCOVERED_ENDPOINT_H_
-#define __DISCOVERY_DISCOVERED_ENDPOINT_H_
+#ifndef __DISCOVERY_DISCOVERED_PEER_H_
+#define __DISCOVERY_DISCOVERED_PEER_H_
 
 #include <stdint.h>
-#include "ip_port.hpp"
+#include "udp_discovery_ip_port.hpp"
 
 namespace udpdiscovery {
-  class DiscoveredEndpoint {
+  class DiscoveredPeer {
    public:
     IpPort ip_port() const {
       return ip_port_;

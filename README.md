@@ -14,9 +14,9 @@ make
 
 Also it is possible to just add implementation files to a project and use the build system of that project:
 <pre>
-endpoint.cpp
-ip_port.cpp
-protocol.cpp
+udp_discovery_peer.cpp
+udp_discovery_ip_port.cpp
+udp_discovery_protocol.cpp
 </pre>
 
 This library has no dependencies.

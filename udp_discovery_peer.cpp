@@ -2,8 +2,8 @@
 #include <string.h>
 #include <vector>
 #include <iostream>
-#include "protocol.hpp"
-#include "endpoint.hpp"
+#include "udp_discovery_protocol.hpp"
+#include "udp_discovery_peer.hpp"
 
 // sockets
 #if defined(_WIN32)
@@ -154,9 +154,9 @@ namespace udpdiscovery {
       return (uint32_t) rand();
     }
 
-    class EndpointEnv : public EndpointEnvInterface {
+    class PeerEnv : public PeerEnvInterface {
      public:
-      EndpointEnv()
+      PeerEnv()
           : binding_sock_(kInvalidSocket),
             sock_(kInvalidSocket),
             packet_index_(0),
@@ -164,21 +164,21 @@ namespace udpdiscovery {
             exit_(false) {
       }
 
-      ~EndpointEnv() {
+      ~PeerEnv() {
         if (binding_sock_ != kInvalidSocket)
           CloseSocket(binding_sock_);
         if (sock_ != kInvalidSocket)
           CloseSocket(sock_);
       }
 
-      bool Start(const EndpointParameters& parameters, const std::string& user_data) {
+      bool Start(const PeerParameters& parameters, const std::string& user_data) {
         parameters_ = parameters;
         user_data_ = user_data;
 
-        endpoint_id_ = MakeRandomId();
+        peer_id_ = MakeRandomId();
 
         if (!parameters_.can_discover() && !parameters_.can_be_discovered()) {
-          std::cerr << "udpdiscovery::Endpoint can't discover and can't be discovered" << std::endl;
+          std::cerr << "udpdiscovery::Peer can't discover and can't be discovered" << std::endl;
           return false;
         }
 
@@ -186,7 +186,7 @@ namespace udpdiscovery {
 
         sock_ = socket(AF_INET, SOCK_DGRAM, 0);
         if (sock_ == kInvalidSocket) {
-          std::cerr << "udpdiscovery::Endpoint can't create socket" << std::endl;
+          std::cerr << "udpdiscovery::Peer can't create socket" << std::endl;
           return false;
         }
 
@@ -200,7 +200,7 @@ namespace udpdiscovery {
         if (parameters_.can_discover()) {
           binding_sock_ = socket(AF_INET, SOCK_DGRAM, 0);
           if (binding_sock_ == kInvalidSocket) {
-            std::cerr << "udpdiscovery::Endpoint can't create binding socket" << std::endl;
+            std::cerr << "udpdiscovery::Peer can't create binding socket" << std::endl;
 
             CloseSocket(sock_);
             sock_ = kInvalidSocket;
@@ -230,7 +230,7 @@ namespace udpdiscovery {
             CloseSocket(sock_);
             sock_ = kInvalidSocket;
 
-            std::cerr << "udpdiscovery::Endpoint can't bind socket" << std::endl;
+            std::cerr << "udpdiscovery::Peer can't bind socket" << std::endl;
             return false;
           }
         }
@@ -246,11 +246,11 @@ namespace udpdiscovery {
         lock_.Unlock();
       }
 
-      std::list<DiscoveredEndpoint> ListDiscovered() {
-        std::list<DiscoveredEndpoint> result;
+      std::list<DiscoveredPeer> ListDiscovered() {
+        std::list<DiscoveredPeer> result;
 
         lock_.Lock();
-        result = discovered_endpoints_;
+        result = discovered_peers_;
         lock_.Unlock();
 
         return result;
@@ -322,7 +322,7 @@ namespace udpdiscovery {
             bool accept_packet = false;
             if (parameters_.application_id() == header.application_id) {
               if (!parameters_.discover_self()) {
-                if (header.peer_id != endpoint_id_)
+                if (header.peer_id != peer_id_)
                   accept_packet = true;
               } else {
                 accept_packet = true;
@@ -332,9 +332,9 @@ namespace udpdiscovery {
             if (accept_packet) {
               lock_.Lock();
 
-              std::list<DiscoveredEndpoint>::iterator find_it = discovered_endpoints_.end();
-              for (std::list<DiscoveredEndpoint>::iterator it = discovered_endpoints_.begin(); it != discovered_endpoints_.end(); ++it) {
-                if (Same(parameters_.same_endpoint_mode(), (*it).ip_port(), from)) {
+              std::list<DiscoveredPeer>::iterator find_it = discovered_peers_.end();
+              for (std::list<DiscoveredPeer>::iterator it = discovered_peers_.begin(); it != discovered_peers_.end(); ++it) {
+                if (Same(parameters_.same_peer_mode(), (*it).ip_port(), from)) {
                   find_it = it;
                   break;
                 }
@@ -343,11 +343,11 @@ namespace udpdiscovery {
               long cur_time = NowTime();
 
               if (header.packet_type == kPacketIAmHere) {
-                if (find_it == discovered_endpoints_.end()) {
-                  discovered_endpoints_.push_back(DiscoveredEndpoint());
-                  discovered_endpoints_.back().set_ip_port(from);
-                  discovered_endpoints_.back().SetUserData(user_data, header.packet_index);
-                  discovered_endpoints_.back().set_last_updated(cur_time);
+                if (find_it == discovered_peers_.end()) {
+                  discovered_peers_.push_back(DiscoveredPeer());
+                  discovered_peers_.back().set_ip_port(from);
+                  discovered_peers_.back().SetUserData(user_data, header.packet_index);
+                  discovered_peers_.back().set_last_updated(cur_time);
                 } else {
                   bool update_user_data = false;
                   if (header.packet_index_reset) {
@@ -362,8 +362,8 @@ namespace udpdiscovery {
                   (*find_it).set_last_updated(cur_time);
                 }
               } else if (header.packet_type == kPacketIAmOutOfHere) {
-                if (find_it != discovered_endpoints_.end()) {
-                  discovered_endpoints_.erase(find_it);
+                if (find_it != discovered_peers_.end()) {
+                  discovered_peers_.erase(find_it);
                 }
               }
 
@@ -376,14 +376,14 @@ namespace udpdiscovery {
       void deleteIdle(long cur_time) {
         lock_.Lock();
 
-        std::vector<std::list<DiscoveredEndpoint>::iterator> to_delete;
-        for (std::list<DiscoveredEndpoint>::iterator it = discovered_endpoints_.begin(); it != discovered_endpoints_.end(); ++it) {
-          if (cur_time - (*it).last_updated() > parameters_.discovered_endpoint_ttl_ms())
+        std::vector<std::list<DiscoveredPeer>::iterator> to_delete;
+        for (std::list<DiscoveredPeer>::iterator it = discovered_peers_.begin(); it != discovered_peers_.end(); ++it) {
+          if (cur_time - (*it).last_updated() > parameters_.discovered_peer_ttl_ms())
             to_delete.push_back(it);
         }
 
         for (size_t i = 0; i < to_delete.size(); ++i)
-          discovered_endpoints_.erase(to_delete[i]);
+          discovered_peers_.erase(to_delete[i]);
 
         lock_.Unlock();
       }
@@ -398,7 +398,7 @@ namespace udpdiscovery {
         header.packet_type = packet_type;
 
         header.application_id = parameters_.application_id();
-        header.peer_id = endpoint_id_;
+        header.peer_id = peer_id_;
         header.packet_index = packet_index_;
         if (header.packet_index >= max_packet_index_) {
           packet_index_ = 0;
@@ -422,8 +422,8 @@ namespace udpdiscovery {
       }
 
      private:
-      EndpointParameters parameters_;
-      uint32_t endpoint_id_;
+      PeerParameters parameters_;
+      uint32_t peer_id_;
       std::vector<char> buffer_;
       SocketType binding_sock_;
       SocketType sock_;
@@ -433,7 +433,7 @@ namespace udpdiscovery {
       MinimalisticMutex lock_;
       bool exit_;
       std::string user_data_;
-      std::list<DiscoveredEndpoint> discovered_endpoints_;
+      std::list<DiscoveredPeer> discovered_peers_;
     };
 
     class MinimalisticThread : public MinimalisticThreadInterface {
@@ -487,15 +487,15 @@ namespace udpdiscovery {
     };
 
 #if defined(_WIN32)
-    DWORD WINAPI EndpointWork(void* env_typeless) {
-      EndpointEnv* env = (EndpointEnv*) env_typeless;
+    DWORD WINAPI PeerWork(void* env_typeless) {
+      PeerEnv* env = (PeerEnv*) env_typeless;
       env->DoWork();
 
       return 0;
     }
 #else
-    void* EndpointWork(void* env_typeless) {
-      EndpointEnv* env = (EndpointEnv*) env_typeless;
+    void* PeerWork(void* env_typeless) {
+      PeerEnv* env = (PeerEnv*) env_typeless;
       env->DoWork();
 
       return 0;
@@ -503,17 +503,17 @@ namespace udpdiscovery {
 #endif
   };
 
-  Endpoint::Endpoint() : env_(0), thread_(0) {
+  Peer::Peer() : env_(0), thread_(0) {
   }
 
-  Endpoint::~Endpoint() {
+  Peer::~Peer() {
     Stop(false);
   }
 
-  bool Endpoint::Start(const EndpointParameters& parameters, const std::string& user_data) {
+  bool Peer::Start(const PeerParameters& parameters, const std::string& user_data) {
     Stop(false);
 
-    impl::EndpointEnv* env = new impl::EndpointEnv();
+    impl::PeerEnv* env = new impl::PeerEnv();
     if (!env->Start(parameters, user_data)) {
       delete env;
       env = 0;
@@ -521,7 +521,7 @@ namespace udpdiscovery {
       return false;
     }
 
-    impl::MinimalisticThread* thread = new impl::MinimalisticThread(impl::EndpointWork, env);
+    impl::MinimalisticThread* thread = new impl::MinimalisticThread(impl::PeerWork, env);
 
     env_ = env;
     thread_ = thread;
@@ -529,19 +529,19 @@ namespace udpdiscovery {
     return true;
   }
 
-  void Endpoint::SetUserData(const std::string& user_data) {
+  void Peer::SetUserData(const std::string& user_data) {
     if (env_)
       env_->SetUserData(user_data);
   }
 
-  std::list<DiscoveredEndpoint> Endpoint::ListDiscovered() const {
-    std::list<DiscoveredEndpoint> result;
+  std::list<DiscoveredPeer> Peer::ListDiscovered() const {
+    std::list<DiscoveredPeer> result;
     if (env_)
       result = env_->ListDiscovered();
     return result;
   }
 
-  void Endpoint::Stop(bool wait_for_thread) {
+  void Peer::Stop(bool wait_for_thread) {
     if (!env_)
       return;
 
@@ -557,22 +557,22 @@ namespace udpdiscovery {
     thread_ = 0;
   }
 
-  bool Same(EndpointParameters::SameEndpointMode mode, const IpPort& lhv, const IpPort& rhv) {
+  bool Same(PeerParameters::SamePeerMode mode, const IpPort& lhv, const IpPort& rhv) {
     switch (mode) {
-    case EndpointParameters::kSameEndpointIp:
+    case PeerParameters::kSamePeerIp:
       return lhv.ip() == rhv.ip();
 
-    case EndpointParameters::kSameEndpointIpAndPort:
+    case PeerParameters::kSamePeerIpAndPort:
       return (lhv.ip() == rhv.ip()) && (lhv.port() == rhv.port());
     }
 
     return false;
   }
 
-  bool Same(EndpointParameters::SameEndpointMode mode, const std::list<DiscoveredEndpoint>& lhv, const std::list<DiscoveredEndpoint>& rhv) {
-    for (std::list<DiscoveredEndpoint>::const_iterator lhv_it = lhv.begin(); lhv_it != lhv.end(); ++lhv_it) {
-      std::list<DiscoveredEndpoint>::const_iterator in_rhv = rhv.end();
-      for (std::list<DiscoveredEndpoint>::const_iterator rhv_it = rhv.begin(); rhv_it != rhv.end(); ++rhv_it) {
+  bool Same(PeerParameters::SamePeerMode mode, const std::list<DiscoveredPeer>& lhv, const std::list<DiscoveredPeer>& rhv) {
+    for (std::list<DiscoveredPeer>::const_iterator lhv_it = lhv.begin(); lhv_it != lhv.end(); ++lhv_it) {
+      std::list<DiscoveredPeer>::const_iterator in_rhv = rhv.end();
+      for (std::list<DiscoveredPeer>::const_iterator rhv_it = rhv.begin(); rhv_it != rhv.end(); ++rhv_it) {
         if (Same(mode, (*lhv_it).ip_port(), (*rhv_it).ip_port())) {
           in_rhv = rhv_it;
           break;
@@ -583,9 +583,9 @@ namespace udpdiscovery {
         return false;
     }
 
-    for (std::list<DiscoveredEndpoint>::const_iterator rhv_it = rhv.begin(); rhv_it != rhv.end(); ++rhv_it) {
-      std::list<DiscoveredEndpoint>::const_iterator in_lhv = lhv.end();
-      for (std::list<DiscoveredEndpoint>::const_iterator lhv_it = lhv.begin(); lhv_it != lhv.end(); ++lhv_it) {
+    for (std::list<DiscoveredPeer>::const_iterator rhv_it = rhv.begin(); rhv_it != rhv.end(); ++rhv_it) {
+      std::list<DiscoveredPeer>::const_iterator in_lhv = lhv.end();
+      for (std::list<DiscoveredPeer>::const_iterator lhv_it = lhv.begin(); lhv_it != lhv.end(); ++lhv_it) {
         if (Same(mode, (*rhv_it).ip_port(), (*lhv_it).ip_port())) {
           in_lhv = lhv_it;
           break;
