@@ -1,5 +1,5 @@
 #include <algorithm>
-#include "protocol.hpp"
+#include "udp_discovery_protocol.hpp"
 
 template<typename ValueType>
 void StoreBigEndian(ValueType value, void* out) {

@@ -1,27 +1,27 @@
-#ifndef __UDP_DISCOVERY_ENDPOINT_PARAMETERS_H_
-#define __UDP_DISCOVERY_ENDPOINT_PARAMETERS_H_
+#ifndef __UDP_DISCOVERY_PEER_PARAMETERS_H_
+#define __UDP_DISCOVERY_PEER_PARAMETERS_H_
 
 #include <stdint.h>
 
 namespace udpdiscovery {
-  class EndpointParameters {
+  class PeerParameters {
    public:
-    enum SameEndpointMode {
-      kSameEndpointIp,
-      kSameEndpointIpAndPort
+    enum SamePeerMode {
+      kSamePeerIp,
+      kSamePeerIpAndPort
     };
 
    public:
-    EndpointParameters()
+    PeerParameters()
         : port_(0),
           application_id_(0),
           receive_timeout_ms_(200),
           send_timeout_ms_(5000),
-          discovered_endpoint_ttl_ms_(10000),
+          discovered_peer_ttl_ms_(10000),
           can_be_discovered_(false),
           can_discover_(false),
           discover_self_(false),
-          same_endpoint_mode_(kSameEndpointIpAndPort) {
+          same_peer_mode_(kSamePeerIpAndPort) {
     }
 
     int port() const {
@@ -60,14 +60,14 @@ namespace udpdiscovery {
       send_timeout_ms_ = send_timeout_ms;
     }
 
-    int discovered_endpoint_ttl_ms() const {
-      return discovered_endpoint_ttl_ms_;
+    int discovered_peer_ttl_ms() const {
+      return discovered_peer_ttl_ms_;
     }
 
-    void set_discovered_endpoint_ttl_ms(int discovered_endpoint_ttl_ms) {
-      if (discovered_endpoint_ttl_ms < 0)
+    void set_discovered_peer_ttl_ms(int discovered_peer_ttl_ms) {
+      if (discovered_peer_ttl_ms < 0)
         return;
-      discovered_endpoint_ttl_ms_ = discovered_endpoint_ttl_ms;
+      discovered_peer_ttl_ms_ = discovered_peer_ttl_ms;
     }
 
     bool can_be_discovered() const {
@@ -94,12 +94,12 @@ namespace udpdiscovery {
       discover_self_ = discover_self;
     }
 
-    SameEndpointMode same_endpoint_mode() const {
-      return same_endpoint_mode_;
+    SamePeerMode same_peer_mode() const {
+      return same_peer_mode_;
     }
 
-    void set_same_endpoint_mode(SameEndpointMode same_endpoint_mode) {
-      same_endpoint_mode_ = same_endpoint_mode;
+    void set_same_peer_mode(SamePeerMode same_peer_mode) {
+      same_peer_mode_ = same_peer_mode;
     }
 
    private:
@@ -107,11 +107,11 @@ namespace udpdiscovery {
     uint32_t application_id_;
     int receive_timeout_ms_;
     int send_timeout_ms_;
-    int discovered_endpoint_ttl_ms_;
+    int discovered_peer_ttl_ms_;
     bool can_be_discovered_;
     bool can_discover_;
     bool discover_self_;
-    SameEndpointMode same_endpoint_mode_;
+    SamePeerMode same_peer_mode_;
   };
 };
 
