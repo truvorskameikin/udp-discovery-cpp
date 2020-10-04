@@ -41,7 +41,7 @@ parameters.set_can_discover(true);
 // This peer can be discovered by other peers.
 parameters.set_can_be_discovered(true);
 
-// Users can tweak other parameters (timeouts, peer comparison mode) to fit their needs
+// Users can tweak other parameters (timeouts, peer comparison mode) to fit their needs.
 // Please refer to udp_discovery_peer_parameters.hpp file.</code>
 </pre>
 
