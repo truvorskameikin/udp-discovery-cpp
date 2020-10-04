@@ -58,8 +58,9 @@ int main(int argc, char* argv[]) {
 
   udpdiscovery::Peer peer;
 
-  if (!peer.Start(parameters, user_data))
+  if (!peer.Start(parameters, user_data)) {
     return 1;
+  }
 
   std::list<udpdiscovery::DiscoveredPeer> discovered_peers;
   std::map<udpdiscovery::IpPort, std::string> last_seen_user_datas;
@@ -71,12 +72,14 @@ int main(int argc, char* argv[]) {
         discovered_peers = new_discovered_peers;
 
         last_seen_user_datas.clear();
-        for (std::list<udpdiscovery::DiscoveredPeer>::const_iterator it = discovered_peers.begin(); it != discovered_peers.end(); ++it)
+        for (std::list<udpdiscovery::DiscoveredPeer>::const_iterator it = discovered_peers.begin(); it != discovered_peers.end(); ++it) {
           last_seen_user_datas.insert(std::make_pair((*it).ip_port(), (*it).user_data()));
+        }
 
         std::cout << "Discovered peers: " << discovered_peers.size() << std::endl;
-        for (std::list<udpdiscovery::DiscoveredPeer>::const_iterator it = discovered_peers.begin(); it != discovered_peers.end(); ++it)
+        for (std::list<udpdiscovery::DiscoveredPeer>::const_iterator it = discovered_peers.begin(); it != discovered_peers.end(); ++it) {
           std::cout << " - " << udpdiscovery::IpPortToString((*it).ip_port()) << ", " << (*it).user_data() << std::endl;
+        }
       } else {
         bool same_user_datas = true;
         for (std::list<udpdiscovery::DiscoveredPeer>::const_iterator it = new_discovered_peers.begin(); it != new_discovered_peers.end(); ++it) {
@@ -96,12 +99,14 @@ int main(int argc, char* argv[]) {
           discovered_peers = new_discovered_peers;
 
           last_seen_user_datas.clear();
-          for (std::list<udpdiscovery::DiscoveredPeer>::const_iterator it = discovered_peers.begin(); it != discovered_peers.end(); ++it)
+          for (std::list<udpdiscovery::DiscoveredPeer>::const_iterator it = discovered_peers.begin(); it != discovered_peers.end(); ++it) {
             last_seen_user_datas.insert(std::make_pair((*it).ip_port(), (*it).user_data()));
+          }
 
           std::cout << "Discovered peers: " << discovered_peers.size() << std::endl;
-          for (std::list<udpdiscovery::DiscoveredPeer>::const_iterator it = discovered_peers.begin(); it != discovered_peers.end(); ++it)
+          for (std::list<udpdiscovery::DiscoveredPeer>::const_iterator it = discovered_peers.begin(); it != discovered_peers.end(); ++it) {
             std::cout << " - " << udpdiscovery::IpToString((*it).ip_port().ip()) << ", " << (*it).user_data() << std::endl;
+          }
         }
       }
 
