@@ -160,7 +160,6 @@ namespace udpdiscovery {
           : binding_sock_(kInvalidSocket),
             sock_(kInvalidSocket),
             packet_index_(0),
-            max_packet_index_(1048576),
             exit_(false) {
       }
 
@@ -349,16 +348,10 @@ namespace udpdiscovery {
                   discovered_peers_.back().SetUserData(user_data, header.packet_index);
                   discovered_peers_.back().set_last_updated(cur_time);
                 } else {
-                  bool update_user_data = false;
-                  if (header.packet_index_reset) {
-                    update_user_data = true;
-                  } else {
-                    if ((*find_it).last_received_packet() < header.packet_index)
-                      update_user_data = true;
-                  }
-
-                  if (update_user_data)
+                  bool update_user_data = ((*find_it).last_received_packet() < header.packet_index);
+                  if (update_user_data) {
                     (*find_it).SetUserData(user_data, header.packet_index);
+                  }
                   (*find_it).set_last_updated(cur_time);
                 }
               } else if (header.packet_type == kPacketIAmOutOfHere) {
@@ -400,12 +393,6 @@ namespace udpdiscovery {
         header.application_id = parameters_.application_id();
         header.peer_id = peer_id_;
         header.packet_index = packet_index_;
-        if (header.packet_index >= max_packet_index_) {
-          packet_index_ = 0;
-
-          header.packet_index = 0;
-          header.packet_index_reset = 1;
-        }
 
         ++packet_index_;
 
@@ -427,8 +414,7 @@ namespace udpdiscovery {
       std::vector<char> buffer_;
       SocketType binding_sock_;
       SocketType sock_;
-      uint32_t packet_index_;
-      uint32_t max_packet_index_;
+      PacketIndex packet_index_;
 
       MinimalisticMutex lock_;
       bool exit_;

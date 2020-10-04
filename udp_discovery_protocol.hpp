@@ -22,6 +22,8 @@ namespace udpdiscovery {
     return false;
   }
 
+  typedef uint64_t PacketIndex;
+
 #pragma pack(push)
 #pragma pack(1)
   struct PacketHeader {
@@ -36,8 +38,7 @@ namespace udpdiscovery {
     unsigned char packet_type;
     uint32_t application_id;
     uint32_t peer_id;
-    uint32_t packet_index;
-    unsigned char packet_index_reset;
+    PacketIndex packet_index;
     uint16_t user_data_size;
     uint16_t padding_size;
   };

@@ -28,8 +28,7 @@ ValueType ReadBigEndian(const void* in) {
 namespace udpdiscovery {
   PacketHeader::PacketHeader()
       : packet_type(kPacketIAmHere),
-        packet_index(0),
-        packet_index_reset(0) {
+        packet_index(0) {
 
     MakeMagic();
 
@@ -129,7 +128,7 @@ namespace udpdiscovery {
     PacketHeader parsed_packet_header = (*header);
     parsed_packet_header.application_id = ReadBigEndian<uint32_t>(&parsed_packet_header.application_id);
     parsed_packet_header.peer_id = ReadBigEndian<uint32_t>(&parsed_packet_header.peer_id);
-    parsed_packet_header.packet_index = ReadBigEndian<uint32_t>(&parsed_packet_header.packet_index);
+    parsed_packet_header.packet_index = ReadBigEndian<PacketIndex>(&parsed_packet_header.packet_index);
     parsed_packet_header.user_data_size = ReadBigEndian<uint16_t>(&parsed_packet_header.user_data_size);
     parsed_packet_header.padding_size = ReadBigEndian<uint16_t>(&parsed_packet_header.padding_size);
 
