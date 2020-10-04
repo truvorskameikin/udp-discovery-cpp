@@ -1,5 +1,5 @@
-#ifndef __DISCOVERY_IP_PORT_H_
-#define __DISCOVERY_IP_PORT_H_
+#ifndef __UDP_DISCOVERY_IP_PORT_H_
+#define __UDP_DISCOVERY_IP_PORT_H_
 
 #include <string>
 
@@ -46,6 +46,8 @@ namespace udpdiscovery {
   };
 
   std::string IpToString(unsigned int ip);
+
+  std::string IpPortToString(const IpPort& ip_port);
 };
 
 #endif

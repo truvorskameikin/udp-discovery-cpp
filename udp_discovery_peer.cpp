@@ -2,8 +2,8 @@
 #include <string.h>
 #include <vector>
 #include <iostream>
-#include "protocol.hpp"
-#include "endpoint.hpp"
+#include "udp_discovery_protocol.hpp"
+#include "udp_discovery_peer.hpp"
 
 // sockets
 #if defined(_WIN32)
@@ -24,6 +24,7 @@ typedef socklen_t AddressLenType;
 const SocketType kInvalidSocket = -1;
 #endif
 
+static
 void InitSockets() {
 #if defined(_WIN32)
   WSADATA wsa_data;
@@ -31,6 +32,7 @@ void InitSockets() {
 #endif
 }
 
+static
 void CloseSocket(SocketType sock) {
 #if defined(_WIN32)
   closesocket(sock);
@@ -39,6 +41,7 @@ void CloseSocket(SocketType sock) {
 #endif
 }
 
+static
 void SetSocketTimeout(SocketType sock, int param, int timeout_ms) {
 #if defined(_WIN32)
     setsockopt(sock, SOL_SOCKET, param, (const char *) &timeout_ms, sizeof(timeout_ms));
@@ -59,6 +62,7 @@ void SetSocketTimeout(SocketType sock, int param, int timeout_ms) {
 #include <pthread.h>
 #endif
 
+static
 void SleepFor(int time_ms) {
 #if defined(_WIN32)
   Sleep(time_ms);
@@ -145,34 +149,35 @@ long NowTime() {
 
 namespace udpdiscovery {
   namespace impl {
-    uint64_t MakeRandomId() {
-      srand(time(0));
-      uint64_t r1 = rand();
-      uint64_t r2 = rand();
-      return ((r1 & 0xffffffff) < 32) | (r2 & 0xffffffff);
+    uint32_t MakeRandomId() {
+      srand((unsigned int) time(0));
+      return (uint32_t) rand();
     }
 
-    class EndpointEnv : public EndpointEnvInterface {
+    class PeerEnv : public PeerEnvInterface {
      public:
-      EndpointEnv()
-          : sock_(kInvalidSocket),
+      PeerEnv()
+          : binding_sock_(kInvalidSocket),
+            sock_(kInvalidSocket),
             packet_index_(0),
-            max_packet_index_(1073741824),
             exit_(false) {
       }
 
-      ~EndpointEnv() {
-        CloseSocket(sock_);
+      ~PeerEnv() {
+        if (binding_sock_ != kInvalidSocket)
+          CloseSocket(binding_sock_);
+        if (sock_ != kInvalidSocket)
+          CloseSocket(sock_);
       }
 
-      bool Start(const EndpointParameters& parameters, const std::string& user_data) {
+      bool Start(const PeerParameters& parameters, const std::string& user_data) {
         parameters_ = parameters;
         user_data_ = user_data;
 
-        endpoint_id_ = MakeRandomId();
+        peer_id_ = MakeRandomId();
 
         if (!parameters_.can_discover() && !parameters_.can_be_discovered()) {
-          std::cerr << "udpdiscovery::Endpoint can't discover and can't be discovered" << std::endl;
+          std::cerr << "udpdiscovery::Peer can't discover and can't be discovered" << std::endl;
           return false;
         }
 
@@ -180,7 +185,7 @@ namespace udpdiscovery {
 
         sock_ = socket(AF_INET, SOCK_DGRAM, 0);
         if (sock_ == kInvalidSocket) {
-          std::cerr << "udpdiscovery::Endpoint can't create socket" << std::endl;
+          std::cerr << "udpdiscovery::Peer can't create socket" << std::endl;
           return false;
         }
 
@@ -189,13 +194,27 @@ namespace udpdiscovery {
           setsockopt(sock_, SOL_SOCKET, SO_BROADCAST, (const char *) &value, sizeof(value));
         }
 
+        SetSocketTimeout(sock_, SO_RCVTIMEO, parameters_.receive_timeout_ms());
+
         if (parameters_.can_discover()) {
-          {
-            int value = 1;
-            setsockopt(sock_, SOL_SOCKET, SO_REUSEADDR, (const char *) &value, sizeof(value));
+          binding_sock_ = socket(AF_INET, SOCK_DGRAM, 0);
+          if (binding_sock_ == kInvalidSocket) {
+            std::cerr << "udpdiscovery::Peer can't create binding socket" << std::endl;
+
+            CloseSocket(sock_);
+            sock_ = kInvalidSocket;
           }
 
-          SetSocketTimeout(sock_, SO_RCVTIMEO, parameters_.receive_timeout_ms());
+          {
+            int reuse_addr = 1;
+            setsockopt(binding_sock_, SOL_SOCKET, SO_REUSEADDR, (const char *) &reuse_addr, sizeof(reuse_addr));
+#ifdef SO_REUSEPORT
+            int reuse_port = 1;
+            setsockopt(binding_sock_, SOL_SOCKET, SO_REUSEPORT, (const char *) &reuse_port, sizeof(reuse_port));
+#endif
+          }
+
+          SetSocketTimeout(binding_sock_, SO_RCVTIMEO, parameters_.receive_timeout_ms());
 
           sockaddr_in addr;
           memset((char *) &addr, 0, sizeof(sockaddr_in));
@@ -203,16 +222,19 @@ namespace udpdiscovery {
           addr.sin_port = htons(parameters_.port());
           addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
-          if (bind(sock_, (struct sockaddr *) &addr, sizeof(sockaddr_in)) < 0) {
+          if (bind(binding_sock_, (struct sockaddr *) &addr, sizeof(sockaddr_in)) < 0) {
+            CloseSocket(binding_sock_);
+            binding_sock_ = kInvalidSocket;
+
             CloseSocket(sock_);
             sock_ = kInvalidSocket;
 
-            std::cerr << "udpdiscovery::Endpoint can't bind socket" << std::endl;
+            std::cerr << "udpdiscovery::Peer can't bind socket" << std::endl;
             return false;
           }
-
-          buffer_.resize(kMaxPacketSize);
         }
+
+        buffer_.resize(kMaxPacketSize);
 
         return true;
       }
@@ -223,11 +245,11 @@ namespace udpdiscovery {
         lock_.Unlock();
       }
 
-      std::list<DiscoveredEndpoint> ListDiscovered() {
-        std::list<DiscoveredEndpoint> result;
+      std::list<DiscoveredPeer> ListDiscovered() {
+        std::list<DiscoveredPeer> result;
 
         lock_.Lock();
-        result = discovered_endpoints_;
+        result = discovered_peers_;
         lock_.Unlock();
 
         return result;
@@ -279,7 +301,7 @@ namespace udpdiscovery {
         sockaddr_in from_addr;
         AddressLenType addr_length = sizeof(sockaddr_in);
 
-        int length = (int) recvfrom(sock_, &buffer_[0], buffer_.size(), 0, (struct sockaddr *) &from_addr, &addr_length);
+        int length = (int) recvfrom(binding_sock_, &buffer_[0], buffer_.size(), 0, (struct sockaddr *) &from_addr, &addr_length);
         if (length <= 0)
           return;
 
@@ -287,13 +309,19 @@ namespace udpdiscovery {
         from.set_port(ntohs(from_addr.sin_port));
         from.set_ip(ntohl(from_addr.sin_addr.s_addr));
 
-        if (length >= sizeof(PacketHeader)) {
+        processReceivedBuffer(from, length);
+      }
+
+      void processReceivedBuffer(const IpPort& from, int packet_length) {
+        if (packet_length >= sizeof(PacketHeader)) {
           PacketHeader header;
-          if (ParsePacketHeader(buffer_.data(), sizeof(PacketHeader), header)) {
+          std::string user_data;
+
+          if (ParsePacket(buffer_.data(), packet_length, header, user_data)) {
             bool accept_packet = false;
             if (parameters_.application_id() == header.application_id) {
               if (!parameters_.discover_self()) {
-                if (header.peer_id != endpoint_id_)
+                if (header.peer_id != peer_id_)
                   accept_packet = true;
               } else {
                 accept_packet = true;
@@ -301,14 +329,11 @@ namespace udpdiscovery {
             }
 
             if (accept_packet) {
-              std::string user_data(
-                buffer_.begin() + sizeof(PacketHeader), buffer_.begin() + sizeof(PacketHeader) + header.user_data_size);
-
               lock_.Lock();
 
-              std::list<DiscoveredEndpoint>::iterator find_it = discovered_endpoints_.end();
-              for (std::list<DiscoveredEndpoint>::iterator it = discovered_endpoints_.begin(); it != discovered_endpoints_.end(); ++it) {
-                if (Same(parameters_.same_endpoint_mode(), (*it).ip_port(), from)) {
+              std::list<DiscoveredPeer>::iterator find_it = discovered_peers_.end();
+              for (std::list<DiscoveredPeer>::iterator it = discovered_peers_.begin(); it != discovered_peers_.end(); ++it) {
+                if (Same(parameters_.same_peer_mode(), (*it).ip_port(), from)) {
                   find_it = it;
                   break;
                 }
@@ -317,27 +342,21 @@ namespace udpdiscovery {
               long cur_time = NowTime();
 
               if (header.packet_type == kPacketIAmHere) {
-                if (find_it == discovered_endpoints_.end()) {
-                  discovered_endpoints_.push_back(DiscoveredEndpoint());
-                  discovered_endpoints_.back().set_ip_port(from);
-                  discovered_endpoints_.back().SetUserData(user_data, header.packet_index);
-                  discovered_endpoints_.back().set_last_updated(cur_time);
+                if (find_it == discovered_peers_.end()) {
+                  discovered_peers_.push_back(DiscoveredPeer());
+                  discovered_peers_.back().set_ip_port(from);
+                  discovered_peers_.back().SetUserData(user_data, header.packet_index);
+                  discovered_peers_.back().set_last_updated(cur_time);
                 } else {
-                  bool update_user_data = false;
-                  if (header.packet_index_reset) {
-                    update_user_data = true;
-                  } else {
-                    if ((*find_it).last_received_packet() < header.packet_index)
-                      update_user_data = true;
-                  }
-
-                  if (update_user_data)
+                  bool update_user_data = ((*find_it).last_received_packet() < header.packet_index);
+                  if (update_user_data) {
                     (*find_it).SetUserData(user_data, header.packet_index);
+                  }
                   (*find_it).set_last_updated(cur_time);
                 }
               } else if (header.packet_type == kPacketIAmOutOfHere) {
-                if (find_it != discovered_endpoints_.end()) {
-                  discovered_endpoints_.erase(find_it);
+                if (find_it != discovered_peers_.end()) {
+                  discovered_peers_.erase(find_it);
                 }
               }
 
@@ -350,14 +369,14 @@ namespace udpdiscovery {
       void deleteIdle(long cur_time) {
         lock_.Lock();
 
-        std::vector<std::list<DiscoveredEndpoint>::iterator> to_delete;
-        for (std::list<DiscoveredEndpoint>::iterator it = discovered_endpoints_.begin(); it != discovered_endpoints_.end(); ++it) {
-          if (cur_time - (*it).last_updated() > parameters_.discovered_endpoint_ttl_ms())
+        std::vector<std::list<DiscoveredPeer>::iterator> to_delete;
+        for (std::list<DiscoveredPeer>::iterator it = discovered_peers_.begin(); it != discovered_peers_.end(); ++it) {
+          if (cur_time - (*it).last_updated() > parameters_.discovered_peer_ttl_ms())
             to_delete.push_back(it);
         }
 
         for (size_t i = 0; i < to_delete.size(); ++i)
-          discovered_endpoints_.erase(to_delete[i]);
+          discovered_peers_.erase(to_delete[i]);
 
         lock_.Unlock();
       }
@@ -372,14 +391,8 @@ namespace udpdiscovery {
         header.packet_type = packet_type;
 
         header.application_id = parameters_.application_id();
-        header.peer_id = endpoint_id_;
+        header.peer_id = peer_id_;
         header.packet_index = packet_index_;
-        if (header.packet_index >= max_packet_index_) {
-          packet_index_ = 0;
-
-          header.packet_index = 0;
-          header.packet_index_reset = 1;
-        }
 
         ++packet_index_;
 
@@ -396,17 +409,17 @@ namespace udpdiscovery {
       }
 
      private:
-      EndpointParameters parameters_;
-      uint64_t endpoint_id_;
+      PeerParameters parameters_;
+      uint32_t peer_id_;
       std::vector<char> buffer_;
+      SocketType binding_sock_;
       SocketType sock_;
-      uint64_t packet_index_;
-      uint64_t max_packet_index_;
+      PacketIndex packet_index_;
 
       MinimalisticMutex lock_;
       bool exit_;
       std::string user_data_;
-      std::list<DiscoveredEndpoint> discovered_endpoints_;
+      std::list<DiscoveredPeer> discovered_peers_;
     };
 
     class MinimalisticThread : public MinimalisticThreadInterface {
@@ -460,15 +473,15 @@ namespace udpdiscovery {
     };
 
 #if defined(_WIN32)
-    DWORD WINAPI EndpointWork(void* env_typeless) {
-      EndpointEnv* env = (EndpointEnv*) env_typeless;
+    DWORD WINAPI PeerWork(void* env_typeless) {
+      PeerEnv* env = (PeerEnv*) env_typeless;
       env->DoWork();
 
-	  return 0;
+      return 0;
     }
 #else
-    void* EndpointWork(void* env_typeless) {
-      EndpointEnv* env = (EndpointEnv*) env_typeless;
+    void* PeerWork(void* env_typeless) {
+      PeerEnv* env = (PeerEnv*) env_typeless;
       env->DoWork();
 
       return 0;
@@ -476,17 +489,17 @@ namespace udpdiscovery {
 #endif
   };
 
-  Endpoint::Endpoint() : env_(0), thread_(0) {
+  Peer::Peer() : env_(0), thread_(0) {
   }
 
-  Endpoint::~Endpoint() {
+  Peer::~Peer() {
     Stop(false);
   }
 
-  bool Endpoint::Start(const EndpointParameters& parameters, const std::string& user_data) {
+  bool Peer::Start(const PeerParameters& parameters, const std::string& user_data) {
     Stop(false);
 
-    impl::EndpointEnv* env = new impl::EndpointEnv();
+    impl::PeerEnv* env = new impl::PeerEnv();
     if (!env->Start(parameters, user_data)) {
       delete env;
       env = 0;
@@ -494,7 +507,7 @@ namespace udpdiscovery {
       return false;
     }
 
-    impl::MinimalisticThread* thread = new impl::MinimalisticThread(impl::EndpointWork, env);
+    impl::MinimalisticThread* thread = new impl::MinimalisticThread(impl::PeerWork, env);
 
     env_ = env;
     thread_ = thread;
@@ -502,19 +515,19 @@ namespace udpdiscovery {
     return true;
   }
 
-  void Endpoint::SetUserData(const std::string& user_data) {
+  void Peer::SetUserData(const std::string& user_data) {
     if (env_)
       env_->SetUserData(user_data);
   }
 
-  std::list<DiscoveredEndpoint> Endpoint::ListDiscovered() const {
-    std::list<DiscoveredEndpoint> result;
+  std::list<DiscoveredPeer> Peer::ListDiscovered() const {
+    std::list<DiscoveredPeer> result;
     if (env_)
       result = env_->ListDiscovered();
     return result;
   }
 
-  void Endpoint::Stop(bool wait_for_thread) {
+  void Peer::Stop(bool wait_for_thread) {
     if (!env_)
       return;
 
@@ -530,22 +543,22 @@ namespace udpdiscovery {
     thread_ = 0;
   }
 
-  bool Same(EndpointParameters::SameEndpointMode mode, const IpPort& lhv, const IpPort& rhv) {
+  bool Same(PeerParameters::SamePeerMode mode, const IpPort& lhv, const IpPort& rhv) {
     switch (mode) {
-    case EndpointParameters::kSameEndpointIp:
+    case PeerParameters::kSamePeerIp:
       return lhv.ip() == rhv.ip();
 
-    case EndpointParameters::kSameEndpointIpAndPort:
+    case PeerParameters::kSamePeerIpAndPort:
       return (lhv.ip() == rhv.ip()) && (lhv.port() == rhv.port());
     }
 
     return false;
   }
 
-  bool Same(EndpointParameters::SameEndpointMode mode, const std::list<DiscoveredEndpoint>& lhv, const std::list<DiscoveredEndpoint>& rhv) {
-    for (std::list<DiscoveredEndpoint>::const_iterator lhv_it = lhv.begin(); lhv_it != lhv.end(); ++lhv_it) {
-      std::list<DiscoveredEndpoint>::const_iterator in_rhv = rhv.end();
-      for (std::list<DiscoveredEndpoint>::const_iterator rhv_it = rhv.begin(); rhv_it != rhv.end(); ++rhv_it) {
+  bool Same(PeerParameters::SamePeerMode mode, const std::list<DiscoveredPeer>& lhv, const std::list<DiscoveredPeer>& rhv) {
+    for (std::list<DiscoveredPeer>::const_iterator lhv_it = lhv.begin(); lhv_it != lhv.end(); ++lhv_it) {
+      std::list<DiscoveredPeer>::const_iterator in_rhv = rhv.end();
+      for (std::list<DiscoveredPeer>::const_iterator rhv_it = rhv.begin(); rhv_it != rhv.end(); ++rhv_it) {
         if (Same(mode, (*lhv_it).ip_port(), (*rhv_it).ip_port())) {
           in_rhv = rhv_it;
           break;
@@ -556,9 +569,9 @@ namespace udpdiscovery {
         return false;
     }
 
-    for (std::list<DiscoveredEndpoint>::const_iterator rhv_it = rhv.begin(); rhv_it != rhv.end(); ++rhv_it) {
-      std::list<DiscoveredEndpoint>::const_iterator in_lhv = lhv.end();
-      for (std::list<DiscoveredEndpoint>::const_iterator lhv_it = lhv.begin(); lhv_it != lhv.end(); ++lhv_it) {
+    for (std::list<DiscoveredPeer>::const_iterator rhv_it = rhv.begin(); rhv_it != rhv.end(); ++rhv_it) {
+      std::list<DiscoveredPeer>::const_iterator in_lhv = lhv.end();
+      for (std::list<DiscoveredPeer>::const_iterator lhv_it = lhv.begin(); lhv_it != lhv.end(); ++lhv_it) {
         if (Same(mode, (*rhv_it).ip_port(), (*lhv_it).ip_port())) {
           in_lhv = lhv_it;
           break;
