@@ -1,6 +1,6 @@
 # Users of udp-discovery-cpp
 
-This file lists all known users of udp-discovery-cpp library. Feel free to add your project here filing a [pull request](https://github.com/truvorskameikin/udp-discovery-cpp/pulls)!
+This file lists all known users of **udp-discovery-cpp** library. Feel free to add your project here filing a [pull request](https://github.com/truvorskameikin/udp-discovery-cpp/pulls)!
 
 #### Table of content
 
