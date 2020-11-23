@@ -2,6 +2,10 @@
 
 A small library to add local network discovery feature to your C++ programs with no dependencies
 
+## Users
+
+For the list of **udp-discovery-cpp** library users please refer to [USERS.md](USERS.md) document.
+
 ## How to build
 This library uses [CMake](https://cmake.org/) to build static library, examples and tools. To build all targets do:
 <pre>
