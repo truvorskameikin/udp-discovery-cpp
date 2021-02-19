@@ -5,9 +5,13 @@ A small library to add local network discovery feature to your C++ programs with
 #### Table of content
 
 [Users](#users)
+
 [How to build](#how_to_build)
+
 [How to use](#how_to_use)
+
 [Example program](#example_program)
+
 [Discovery tool](#discovery_tool)
 
 <a name="users"/>
