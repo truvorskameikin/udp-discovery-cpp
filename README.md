@@ -2,9 +2,21 @@
 
 A small library to add local network discovery feature to your C++ programs with no dependencies
 
+#### Table of content
+
+[Users](#users)
+[How to build](#how_to_build)
+[How to use](#how_to_use)
+[Example program](#example_program)
+[Discovery tool](#discovery_tool)
+
+<a name="users"/>
+
 ## Users
 
 For the list of **udp-discovery-cpp** library users please refer to [USERS.md](USERS.md) document.
+
+<a name="how_to_build"/>
 
 ## How to build
 This library uses [CMake](https://cmake.org/) to build static library, examples and tools. To build all targets do:
@@ -24,6 +36,8 @@ udp_discovery_protocol.cpp
 </pre>
 
 This library has no dependencies.
+
+<a name="how_to_use"/>
 
 ## How to use
 
@@ -74,6 +88,8 @@ bool is_same = udpdiscovery::Same(parameters.same_peer_mode(), discovered_peers,
 ## How to run the example program and a discovery tool
 [CMake](https://cmake.org/) build of this library produces static library, example program **udp-discovery-example** and a tool to discover local peers **udp-discovery-tool**.
 
+<a name="example_program"/>
+
 ### The example program
 
 The example program **udp-discovery-example** has the following arguments:
@@ -94,6 +110,8 @@ commands are: help, user_data, exit
 
 *user_data* command changes user data associated with this peer.
 *exit* command exits the **udp-discovery-example** gracefully sending *kPacketIAmOutOfHere* packet.
+
+<a name="discovery_tool"/>
 
 ### Discovery tool
 
