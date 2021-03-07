@@ -33,7 +33,7 @@ if(BUILD_EXAMPLE)
 	endif()
 
 	if(WIN32)
-		set(DISCOVERY_EXAMPLE_LIBS ${DISCOVERY_EXAMPLE_LIBS} Ws2_32)
+		set(DISCOVERY_EXAMPLE_LIBS ${DISCOVERY_EXAMPLE_LIBS} Ws2_32 iphlpapi)
 	endif(WIN32)
 
 	add_executable(udp-discovery-example ${DISCOVERY_EXAMPLE_SOURCES})
