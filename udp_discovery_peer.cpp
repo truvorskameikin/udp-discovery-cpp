@@ -3,6 +3,7 @@
 #include <vector>
 #include <iostream>
 #include "udp_discovery_protocol.hpp"
+#include "udp_discovery_network_interfaces.hpp"
 #include "udp_discovery_peer.hpp"
 
 // sockets
@@ -171,6 +172,11 @@ namespace udpdiscovery {
       }
 
       bool Start(const PeerParameters& parameters, const std::string& user_data) {
+        std::vector<NetworkInterface> network_interfaces = EnumBroadcastInterfaces();
+        for (std::vector<NetworkInterface>::iterator it = network_interfaces.begin(); it != network_interfaces.end(); ++it) {
+          std::cout << "Name: " << (*it).name() << std::endl;
+        }
+
         parameters_ = parameters;
         user_data_ = user_data;
 
@@ -398,13 +404,26 @@ namespace udpdiscovery {
 
         std::string packet_data;
         if (MakePacket(header, user_data, packet_data)) {
-          sockaddr_in addr;
-          memset((char *) &addr, 0, sizeof(sockaddr_in));
-          addr.sin_family = AF_INET;
-          addr.sin_port = htons(parameters_.port());
-          addr.sin_addr.s_addr = htonl(INADDR_BROADCAST);
+          std::vector<NetworkInterface> network_interfaces = EnumBroadcastInterfaces();
+          if (network_interfaces.empty()) {
+            sockaddr_in addr;
+            memset((char *) &addr, 0, sizeof(sockaddr_in));
+            addr.sin_family = AF_INET;
+            addr.sin_port = htons(parameters_.port());
+            addr.sin_addr.s_addr = htonl(INADDR_BROADCAST);
 
-          sendto(sock_, &packet_data[0], packet_data.size(), 0, (struct sockaddr *) &addr, sizeof(sockaddr_in));
+            sendto(sock_, &packet_data[0], packet_data.size(), 0, (struct sockaddr *) &addr, sizeof(sockaddr_in));
+          } else {
+            for (std::vector<NetworkInterface>::iterator it = network_interfaces.begin(); it != network_interfaces.end(); ++it) {
+              sockaddr_in addr;
+              memset((char *) &addr, 0, sizeof(sockaddr_in));
+              addr.sin_family = AF_INET;
+              addr.sin_port = htons(parameters_.port());
+              addr.sin_addr.s_addr = htonl((*it).broadcast_address());
+
+              sendto(sock_, &packet_data[0], packet_data.size(), 0, (struct sockaddr *) &addr, sizeof(sockaddr_in));
+            }
+          }
         }
       }
 
