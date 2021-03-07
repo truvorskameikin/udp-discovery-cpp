@@ -172,11 +172,6 @@ namespace udpdiscovery {
       }
 
       bool Start(const PeerParameters& parameters, const std::string& user_data) {
-        std::vector<NetworkInterface> network_interfaces = EnumBroadcastInterfaces();
-        for (std::vector<NetworkInterface>::iterator it = network_interfaces.begin(); it != network_interfaces.end(); ++it) {
-          std::cout << "Name: " << (*it).name() << std::endl;
-        }
-
         parameters_ = parameters;
         user_data_ = user_data;
 
