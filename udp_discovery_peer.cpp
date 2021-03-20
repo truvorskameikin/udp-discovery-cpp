@@ -44,12 +44,12 @@ void CloseSocket(SocketType sock) {
 static
 void SetSocketTimeout(SocketType sock, int param, int timeout_ms) {
 #if defined(_WIN32)
-    setsockopt(sock, SOL_SOCKET, param, (const char *) &timeout_ms, sizeof(timeout_ms));
+    setsockopt(sock, SOL_SOCKET, param, (const char*) &timeout_ms, sizeof(timeout_ms));
 #else
     struct timeval timeout;
     timeout.tv_sec = timeout_ms / 1000;
     timeout.tv_usec = 1000 * (timeout_ms % 1000);
-    setsockopt(sock, SOL_SOCKET, param, (const char *) &timeout, sizeof(timeout));
+    setsockopt(sock, SOL_SOCKET, param, (const char*) &timeout, sizeof(timeout));
 #endif
 }
 
@@ -147,6 +147,23 @@ long NowTime() {
   return 0;
 }
 
+static
+bool IsRightTime(long last_action_time, long now_time, long timeout, long& time_to_wait_out) {
+  if (last_action_time == 0) {
+    time_to_wait_out = timeout;
+    return true;
+  }
+
+  long time_passed = now_time - last_action_time;
+  if (time_passed > timeout) {
+    time_to_wait_out = timeout - (time_passed - timeout);
+    return true;
+  }
+
+  time_to_wait_out = timeout - time_passed;
+  return false;
+}
+
 namespace udpdiscovery {
   namespace impl {
     uint32_t MakeRandomId() {
@@ -174,6 +191,11 @@ namespace udpdiscovery {
         parameters_ = parameters;
         user_data_ = user_data;
 
+        if (!parameters_.can_use_broadcast() && !parameters_.can_use_multicast()) {
+          std::cerr << "udpdiscovery::Peer can't use broadcast and can't use multicast" << std::endl;
+          return false;
+        }
+
         peer_id_ = MakeRandomId();
 
         if (!parameters_.can_discover() && !parameters_.can_be_discovered()) {
@@ -191,7 +213,7 @@ namespace udpdiscovery {
 
         {
           int value = 1;
-          setsockopt(sock_, SOL_SOCKET, SO_BROADCAST, (const char *) &value, sizeof(value));
+          setsockopt(sock_, SOL_SOCKET, SO_BROADCAST, (const char*) &value, sizeof(value));
         }
 
         SetSocketTimeout(sock_, SO_RCVTIMEO, parameters_.receive_timeout_ms());
@@ -207,11 +229,18 @@ namespace udpdiscovery {
 
           {
             int reuse_addr = 1;
-            setsockopt(binding_sock_, SOL_SOCKET, SO_REUSEADDR, (const char *) &reuse_addr, sizeof(reuse_addr));
+            setsockopt(binding_sock_, SOL_SOCKET, SO_REUSEADDR, (const char*) &reuse_addr, sizeof(reuse_addr));
 #ifdef SO_REUSEPORT
             int reuse_port = 1;
-            setsockopt(binding_sock_, SOL_SOCKET, SO_REUSEPORT, (const char *) &reuse_port, sizeof(reuse_port));
+            setsockopt(binding_sock_, SOL_SOCKET, SO_REUSEPORT, (const char*) &reuse_port, sizeof(reuse_port));
 #endif
+          }
+
+          if (parameters_.can_use_multicast()) {
+            struct ip_mreq mreq;
+            mreq.imr_multiaddr.s_addr = htonl(parameters_.multicast_group_address());
+            mreq.imr_interface.s_addr = INADDR_ANY;
+            setsockopt(binding_sock_, IPPROTO_IP, IP_ADD_MEMBERSHIP, (const char*) &mreq, sizeof(mreq));
           }
 
           SetSocketTimeout(binding_sock_, SO_RCVTIMEO, parameters_.receive_timeout_ms());
@@ -262,57 +291,88 @@ namespace udpdiscovery {
       }
 
       void DoWork() {
-        long last_send_time = 0;
+        long last_send_time_ms = 0;
+        long last_receive_time_ms = 0;
+        long last_delete_idle_ms = 0;
         while (true) {
           lock_.Lock();
           bool exit = exit_;
           lock_.Unlock();
 
-          if (exit)
+          if (exit) {
             break;
+          }
+
+          long cur_time_ms = NowTime();
+          long to_sleep_ms = 0;
 
           if (parameters_.can_be_discovered()) {
-            long cur_time = NowTime();
-            if (last_send_time == 0) {
+            if (IsRightTime(
+                  last_send_time_ms,
+                  cur_time_ms,
+                  parameters_.send_timeout_ms(),
+                  to_sleep_ms)) {
               send(kPacketIAmHere);
-              last_send_time = cur_time;
-            } else {
-              if (cur_time - last_send_time > parameters_.send_timeout_ms()) {
-                send(kPacketIAmHere);
-                last_send_time = cur_time;
-              }
+              last_send_time_ms = cur_time_ms;
             }
           }
 
           if (parameters_.can_discover()) {
-            receive();
-            deleteIdle(NowTime());
-          } else {
-            SleepFor(parameters_.receive_timeout_ms());
+            long to_sleep_until_next_receive = 0;
+            if (IsRightTime(
+                  last_receive_time_ms,
+                  cur_time_ms,
+                  parameters_.receive_timeout_ms(),
+                  to_sleep_until_next_receive)) {
+              receive(cur_time_ms);
+              last_receive_time_ms = cur_time_ms;
+            }
+
+            if (to_sleep_ms > to_sleep_until_next_receive) {
+              to_sleep_ms = to_sleep_until_next_receive;
+            }
+
+            long to_sleep_until_next_delete_idle = 0;
+            if (IsRightTime(
+                  last_delete_idle_ms,
+                  cur_time_ms,
+                  parameters_.discovered_peer_ttl_ms(),
+                  to_sleep_until_next_delete_idle)) {
+              deleteIdle(cur_time_ms);
+              last_delete_idle_ms = cur_time_ms;
+            }
+
+            if (to_sleep_ms > to_sleep_until_next_delete_idle) {
+              to_sleep_ms = to_sleep_until_next_delete_idle;
+            }
           }
+
+          SleepFor(to_sleep_ms);
         }
 
-        if (parameters_.can_be_discovered())
+        if (parameters_.can_be_discovered()) {
           send(kPacketIAmOutOfHere);
+        }
       }
 
      private:
-      void receive() {
+      void receive(long cur_time_ms) {
         sockaddr_in from_addr;
         AddressLenType addr_length = sizeof(sockaddr_in);
 
         int length = (int) recvfrom(binding_sock_, &buffer_[0], buffer_.size(), 0, (struct sockaddr *) &from_addr, &addr_length);
-        if (length <= 0)
+        if (length <= 0) {
           return;
+        }
 
         IpPort from;
         from.set_port(ntohs(from_addr.sin_port));
         from.set_ip(ntohl(from_addr.sin_addr.s_addr));
 
-        processReceivedBuffer(from, length);
+        processReceivedBuffer(cur_time_ms, from, length);
       }
 
-      void processReceivedBuffer(const IpPort& from, int packet_length) {
+      void processReceivedBuffer(long cur_time_ms, const IpPort& from, int packet_length) {
         if (packet_length >= sizeof(PacketHeader)) {
           PacketHeader header;
           std::string user_data;
@@ -321,8 +381,9 @@ namespace udpdiscovery {
             bool accept_packet = false;
             if (parameters_.application_id() == header.application_id) {
               if (!parameters_.discover_self()) {
-                if (header.peer_id != peer_id_)
+                if (header.peer_id != peer_id_) {
                   accept_packet = true;
+                }
               } else {
                 accept_packet = true;
               }
@@ -339,20 +400,18 @@ namespace udpdiscovery {
                 }
               }
 
-              long cur_time = NowTime();
-
               if (header.packet_type == kPacketIAmHere) {
                 if (find_it == discovered_peers_.end()) {
                   discovered_peers_.push_back(DiscoveredPeer());
                   discovered_peers_.back().set_ip_port(from);
                   discovered_peers_.back().SetUserData(user_data, header.packet_index);
-                  discovered_peers_.back().set_last_updated(cur_time);
+                  discovered_peers_.back().set_last_updated(cur_time_ms);
                 } else {
                   bool update_user_data = ((*find_it).last_received_packet() < header.packet_index);
                   if (update_user_data) {
                     (*find_it).SetUserData(user_data, header.packet_index);
                   }
-                  (*find_it).set_last_updated(cur_time);
+                  (*find_it).set_last_updated(cur_time_ms);
                 }
               } else if (header.packet_type == kPacketIAmOutOfHere) {
                 if (find_it != discovered_peers_.end()) {
@@ -366,12 +425,12 @@ namespace udpdiscovery {
         }
       }
 
-      void deleteIdle(long cur_time) {
+      void deleteIdle(long cur_time_ms) {
         lock_.Lock();
 
         std::vector<std::list<DiscoveredPeer>::iterator> to_delete;
         for (std::list<DiscoveredPeer>::iterator it = discovered_peers_.begin(); it != discovered_peers_.end(); ++it) {
-          if (cur_time - (*it).last_updated() > parameters_.discovered_peer_ttl_ms())
+          if (cur_time_ms - (*it).last_updated() > parameters_.discovered_peer_ttl_ms())
             to_delete.push_back(it);
         }
 
@@ -400,9 +459,18 @@ namespace udpdiscovery {
         if (MakePacket(header, user_data, packet_data)) {
           sockaddr_in addr;
           memset((char *) &addr, 0, sizeof(sockaddr_in));
-          addr.sin_family = AF_INET;
-          addr.sin_port = htons(parameters_.port());
-          addr.sin_addr.s_addr = htonl(INADDR_BROADCAST);
+
+          if (parameters_.can_use_broadcast()) {
+            addr.sin_family = AF_INET;
+            addr.sin_port = htons(parameters_.port());
+            addr.sin_addr.s_addr = htonl(INADDR_BROADCAST);
+          }
+
+          if (parameters_.can_use_multicast()) {
+            addr.sin_family = AF_INET;
+            addr.sin_port = htons(parameters_.port());
+            addr.sin_addr.s_addr = htonl(parameters_.multicast_group_address());
+          }
 
           sendto(sock_, &packet_data[0], packet_data.size(), 0, (struct sockaddr *) &addr, sizeof(sockaddr_in));
         }
@@ -435,19 +503,11 @@ namespace udpdiscovery {
 #endif
 
       ~MinimalisticThread() {
-        Detach();
+        detach();
       }
 
       void Detach() {
-        if (detached_)
-          return;
-
-#if defined(_WIN32)
-        CloseHandle(thread_);
-#else
-        pthread_detach(thread_);
-#endif
-        detached_ = true;
+        detach();
       }
 
       void Join() {
@@ -464,6 +524,18 @@ namespace udpdiscovery {
       }
 
      private:
+      void detach() {
+        if (detached_)
+          return;
+
+#if defined(_WIN32)
+        CloseHandle(thread_);
+#else
+        pthread_detach(thread_);
+#endif
+        detached_ = true;
+      }
+
       bool detached_;
 #if defined(_WIN32)
       HANDLE thread_;
@@ -477,12 +549,16 @@ namespace udpdiscovery {
       PeerEnv* env = (PeerEnv*) env_typeless;
       env->DoWork();
 
+      delete env;
+
       return 0;
     }
 #else
     void* PeerWork(void* env_typeless) {
       PeerEnv* env = (PeerEnv*) env_typeless;
       env->DoWork();
+
+      delete env;
 
       return 0;
     }
@@ -516,28 +592,34 @@ namespace udpdiscovery {
   }
 
   void Peer::SetUserData(const std::string& user_data) {
-    if (env_)
+    if (env_) {
       env_->SetUserData(user_data);
+    }
   }
 
   std::list<DiscoveredPeer> Peer::ListDiscovered() const {
     std::list<DiscoveredPeer> result;
-    if (env_)
+    if (env_) {
       result = env_->ListDiscovered();
+    }
     return result;
   }
 
   void Peer::Stop(bool wait_for_thread) {
-    if (!env_)
+    if (!env_) {
       return;
+    }
 
     env_->Exit();
+
+    // Thread lives longer than the object itself. So env will be deleted in the thread.
     env_ = 0;
 
-    if (wait_for_thread)
+    if (wait_for_thread) {
       thread_->Join();
-    else
+    } else {
       thread_->Detach();
+    }
 
     delete thread_;
     thread_ = 0;
