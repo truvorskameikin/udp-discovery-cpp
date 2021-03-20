@@ -12,29 +12,59 @@
 
 const int kPort = 12021;
 const uint64_t kApplicationId = 7681412;
+const unsigned int kMulticastAddress = (224 << 24) + (0 << 16) + (0 << 8) + 123; // 224.0.0.123
 
 void Usage(int argc, char* argv[]) {
-  std::cout << "Usage: " << argv[0] << " {discover|discoverable|both} [user_data]" << std::endl;
+  std::cout << "Usage: " << argv[0] << " {broadcast|multicast|both} {discover|discoverable|both} [user_data]" << std::endl;
+  std::cout << std::endl;
+  std::cout << "broadcast - this instance will use broadcasting for being discovered by others" << std::endl;
+  std::cout << "multicast - this instance will use multicast group (224.0.1.222) for discovery" << std::endl;
+  std::cout << "both - this instance will use both broadcasting and multicast group (224.0.1.222) for discovery" << std::endl;
   std::cout << std::endl;
   std::cout << "discover - this instance will have the ability to only discover other instances" << std::endl;
   std::cout << "discoverable - this instance will have the ability to only be discovered by other instances" << std::endl;
   std::cout << "both - this instance will be able to discover and to be discovered by other instances" << std::endl;
+  std::cout << std::endl;
   std::cout << "user_data - the string sent when broadcasting, shown next to peer's IP" << std::endl;
 }
 
 int main(int argc, char* argv[]) {
+  udpdiscovery::PeerParameters parameters;
+
   if (argc <= 1) {
+    std::cerr << "expecting {broadcast|multicast}" << std::endl;
+    Usage(argc, argv);
+    return 1;
+  }
+
+  // By default broadcast will be used.
+  parameters.set_can_use_broadcast(false);
+  if (strcmp(argv[1], "broadcast") == 0) {
+    parameters.set_can_use_broadcast(true);
+  } else if (strcmp(argv[1], "multicast") == 0) {
+    parameters.set_multicast_group_address(kMulticastAddress);
+    parameters.set_can_use_multicast(true);
+  } else if (strcmp(argv[1], "both") == 0) {
+    parameters.set_can_use_broadcast(true);
+
+    parameters.set_multicast_group_address(kMulticastAddress);
+    parameters.set_can_use_multicast(true);
+  } else {
+    Usage(argc, argv);
+    return 1;
+  }
+
+  if (argc <= 2) {
     std::cerr << "expecting {discover|discoverable|both}" << std::endl;
     Usage(argc, argv);
     return 1;
   }
 
-  udpdiscovery::PeerParameters parameters;
-  if (strcmp(argv[1], "discover") == 0) {
+  if (strcmp(argv[2], "discover") == 0) {
     parameters.set_can_discover(true);
-  } else if (strcmp(argv[1], "discoverable") == 0) {
+  } else if (strcmp(argv[2], "discoverable") == 0) {
     parameters.set_can_be_discovered(true);
-  } else if (strcmp(argv[1], "both") == 0) {
+  } else if (strcmp(argv[2], "both") == 0) {
     parameters.set_can_discover(true);
     parameters.set_can_be_discovered(true);
   } else {
@@ -44,13 +74,13 @@ int main(int argc, char* argv[]) {
 
   std::string user_data;
   if (parameters.can_be_discovered()) {
-    if (argc <= 2) {
+    if (argc <= 3) {
       std::cerr << "expecting user_data" << std::endl;
       Usage(argc, argv);
       return 1;
     }
 
-    user_data = argv[2];
+    user_data = argv[3];
   }
 
   parameters.set_port(kPort);
@@ -105,7 +135,7 @@ int main(int argc, char* argv[]) {
 
           std::cout << "Discovered peers: " << discovered_peers.size() << std::endl;
           for (std::list<udpdiscovery::DiscoveredPeer>::const_iterator it = discovered_peers.begin(); it != discovered_peers.end(); ++it) {
-            std::cout << " - " << udpdiscovery::IpToString((*it).ip_port().ip()) << ", " << (*it).user_data() << std::endl;
+            std::cout << " - " << udpdiscovery::IpPortToString((*it).ip_port()) << ", " << (*it).user_data() << std::endl;
           }
         }
       }
