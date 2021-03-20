@@ -18,8 +18,8 @@ void Usage(int argc, char* argv[]) {
   std::cout << "Usage: " << argv[0] << " {broadcast|multicast|both} {discover|discoverable|both} [user_data]" << std::endl;
   std::cout << std::endl;
   std::cout << "broadcast - this instance will use broadcasting for being discovered by others" << std::endl;
-  std::cout << "multicast - this instance will use multicast group (224.0.1.222) for discovery" << std::endl;
-  std::cout << "both - this instance will use both broadcasting and multicast group (224.0.1.222) for discovery" << std::endl;
+  std::cout << "multicast - this instance will use multicast group (224.0.0.123) for discovery" << std::endl;
+  std::cout << "both - this instance will use both broadcasting and multicast group (224.0.0.123) for discovery" << std::endl;
   std::cout << std::endl;
   std::cout << "discover - this instance will have the ability to only discover other instances" << std::endl;
   std::cout << "discoverable - this instance will have the ability to only be discovered by other instances" << std::endl;

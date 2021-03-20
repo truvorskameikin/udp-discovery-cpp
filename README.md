@@ -98,7 +98,11 @@ bool is_same = udpdiscovery::Same(parameters.same_peer_mode(), discovered_peers,
 
 The example program **udp-discovery-example** has the following arguments:
 <pre>
-Usage: ./udp-discovery-example {discover|discoverable|both} [user_data]
+Usage: ./udp-discovery-example {broadcast|multicast|both} {discover|discoverable|both} [user_data]
+
+broadcast - this instance will use broadcasting for being discovered by others
+multicast - this instance will use multicast group (224.0.0.123) for discovery
+both - this instance will use both broadcasting and multicast group (224.0.0.123) for discovery
 
 discover - this instance will have the ability to only discover other instances
 discoverable - this instance will have the ability to only be discovered by other instances
