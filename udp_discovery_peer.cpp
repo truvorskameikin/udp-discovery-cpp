@@ -216,8 +216,6 @@ namespace udpdiscovery {
           setsockopt(sock_, SOL_SOCKET, SO_BROADCAST, (const char*) &value, sizeof(value));
         }
 
-        SetSocketTimeout(sock_, SO_RCVTIMEO, parameters_.receive_timeout_ms());
-
         if (parameters_.can_discover()) {
           binding_sock_ = socket(AF_INET, SOCK_DGRAM, 0);
           if (binding_sock_ == kInvalidSocket) {
@@ -242,8 +240,6 @@ namespace udpdiscovery {
             mreq.imr_interface.s_addr = INADDR_ANY;
             setsockopt(binding_sock_, IPPROTO_IP, IP_ADD_MEMBERSHIP, (const char*) &mreq, sizeof(mreq));
           }
-
-          SetSocketTimeout(binding_sock_, SO_RCVTIMEO, parameters_.receive_timeout_ms());
 
           sockaddr_in addr;
           memset((char *) &addr, 0, sizeof(sockaddr_in));
@@ -312,6 +308,7 @@ namespace udpdiscovery {
                   cur_time_ms,
                   parameters_.send_timeout_ms(),
                   to_sleep_ms)) {
+              std::cout << "Send at: " << cur_time_ms << std::endl;
               send(kPacketIAmHere);
               last_send_time_ms = cur_time_ms;
             }
@@ -324,7 +321,6 @@ namespace udpdiscovery {
                   cur_time_ms,
                   parameters_.receive_timeout_ms(),
                   to_sleep_until_next_receive)) {
-              receive(cur_time_ms);
               last_receive_time_ms = cur_time_ms;
             }
 
@@ -347,7 +343,11 @@ namespace udpdiscovery {
             }
           }
 
-          SleepFor(to_sleep_ms);
+          if (parameters_.can_discover()) {
+            receiveBlocking(cur_time_ms, to_sleep_ms);
+          } else {
+            SleepFor(to_sleep_ms);
+          }
         }
 
         if (parameters_.can_be_discovered()) {
@@ -356,7 +356,9 @@ namespace udpdiscovery {
       }
 
      private:
-      void receive(long cur_time_ms) {
+      void receiveBlocking(long cur_time_ms, long timeout_ms) {
+        SetSocketTimeout(binding_sock_, SO_RCVTIMEO, parameters_.receive_timeout_ms());
+
         sockaddr_in from_addr;
         AddressLenType addr_length = sizeof(sockaddr_in);
 
