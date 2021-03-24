@@ -18,7 +18,7 @@ namespace udpdiscovery {
           can_use_multicast_(false),
           port_(0),
           multicast_group_address_(0),
-          receive_timeout_ms_(1000),
+          receive_timeout_ms_(200),
           send_timeout_ms_(5000),
           discovered_peer_ttl_ms_(10000),
           can_be_discovered_(false),
