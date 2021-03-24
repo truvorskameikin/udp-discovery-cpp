@@ -308,7 +308,6 @@ namespace udpdiscovery {
                   cur_time_ms,
                   parameters_.send_timeout_ms(),
                   to_sleep_ms)) {
-              std::cout << "Send at: " << cur_time_ms << std::endl;
               send(kPacketIAmHere);
               last_send_time_ms = cur_time_ms;
             }
