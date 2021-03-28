@@ -18,7 +18,6 @@ namespace udpdiscovery {
           can_use_multicast_(false),
           port_(0),
           multicast_group_address_(0),
-          receive_timeout_ms_(200),
           send_timeout_ms_(5000),
           discovered_peer_ttl_ms_(10000),
           can_be_discovered_(false),
@@ -65,16 +64,6 @@ namespace udpdiscovery {
 
     void set_multicast_group_address(unsigned int group_address) {
       multicast_group_address_ = group_address;
-    }
-
-    long receive_timeout_ms() const {
-      return receive_timeout_ms_;
-    }
-
-    void set_receive_timeout_ms(long receive_timeout_ms) {
-      if (receive_timeout_ms < 0)
-        return;
-      receive_timeout_ms_ = receive_timeout_ms;
     }
 
     long send_timeout_ms() const {
@@ -135,7 +124,6 @@ namespace udpdiscovery {
     bool can_use_multicast_;
     int port_;
     unsigned int multicast_group_address_;
-    long receive_timeout_ms_;
     long send_timeout_ms_;
     long discovered_peer_ttl_ms_;
     bool can_be_discovered_;
