@@ -8,28 +8,22 @@ namespace udpdiscovery {
    public:
     enum SamePeerMode {
       kSamePeerIp,
-      kSamePeerIpAndPort
+      kSamePeerIpAndPort,
     };
 
    public:
     PeerParameters()
-        : port_(0),
-          application_id_(0),
-          receive_timeout_ms_(200),
+        : application_id_(0),
+          can_use_broadcast_(true),
+          can_use_multicast_(false),
+          port_(0),
+          multicast_group_address_(0),
           send_timeout_ms_(5000),
           discovered_peer_ttl_ms_(10000),
           can_be_discovered_(false),
           can_discover_(false),
           discover_self_(false),
           same_peer_mode_(kSamePeerIpAndPort) {
-    }
-
-    int port() const {
-      return port_;
-    }
-
-    void set_port(int port) {
-      port_ = port;
     }
 
     uint32_t application_id() const {
@@ -40,31 +34,53 @@ namespace udpdiscovery {
       application_id_ = application_id;
     }
 
-    int receive_timeout_ms() const {
-      return receive_timeout_ms_;
+    bool can_use_broadcast() const {
+      return can_use_broadcast_;
     }
 
-    void set_receive_timeout_ms(int receive_timeout_ms) {
-      if (receive_timeout_ms < 0)
-        return;
-      receive_timeout_ms_ = receive_timeout_ms;
+    void set_can_use_broadcast(bool can_use_broadcast) {
+      can_use_broadcast_ = can_use_broadcast;
     }
 
-    int send_timeout_ms() const {
+    bool can_use_multicast() const {
+      return can_use_multicast_;
+    }
+
+    void set_can_use_multicast(bool can_use_multicast) {
+      can_use_multicast_ = can_use_multicast;
+    }
+
+    int port() const {
+      return port_;
+    }
+
+    void set_port(int port) {
+      port_ = port;
+    }
+
+    unsigned int multicast_group_address() const {
+      return multicast_group_address_;
+    }
+
+    void set_multicast_group_address(unsigned int group_address) {
+      multicast_group_address_ = group_address;
+    }
+
+    long send_timeout_ms() const {
       return send_timeout_ms_;
     }
 
-    void set_send_timeout_ms(int send_timeout_ms) {
+    void set_send_timeout_ms(long send_timeout_ms) {
       if (send_timeout_ms < 0)
         return;
       send_timeout_ms_ = send_timeout_ms;
     }
 
-    int discovered_peer_ttl_ms() const {
+    long discovered_peer_ttl_ms() const {
       return discovered_peer_ttl_ms_;
     }
 
-    void set_discovered_peer_ttl_ms(int discovered_peer_ttl_ms) {
+    void set_discovered_peer_ttl_ms(long discovered_peer_ttl_ms) {
       if (discovered_peer_ttl_ms < 0)
         return;
       discovered_peer_ttl_ms_ = discovered_peer_ttl_ms;
@@ -103,11 +119,13 @@ namespace udpdiscovery {
     }
 
    private:
-    int port_;
     uint32_t application_id_;
-    int receive_timeout_ms_;
-    int send_timeout_ms_;
-    int discovered_peer_ttl_ms_;
+    bool can_use_broadcast_;
+    bool can_use_multicast_;
+    int port_;
+    unsigned int multicast_group_address_;
+    long send_timeout_ms_;
+    long discovered_peer_ttl_ms_;
     bool can_be_discovered_;
     bool can_discover_;
     bool discover_self_;

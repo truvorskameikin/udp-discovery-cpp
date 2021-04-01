@@ -4,12 +4,12 @@ option(BUILD_EXAMPLE "Build example application." OFF)
 option(BUILD_TOOL "Build udp-discovery-tool application." OFF)
 
 set(LIB_SOURCES
-	udp_discovery_peer.cpp
 	udp_discovery_ip_port.cpp
+	udp_discovery_peer.cpp
 	udp_discovery_protocol.cpp)
 set(LIB_HEADERS
-	udp_discovery_peer.hpp
 	udp_discovery_ip_port.hpp
+	udp_discovery_peer.hpp
 	udp_discovery_protocol.hpp)
 
 add_library(udp-discovery STATIC ${LIB_SOURCES} ${LIB_HEADERS})

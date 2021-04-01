@@ -35,13 +35,36 @@ namespace udpdiscovery {
     Peer();
     ~Peer();
 
+    /**
+     * \brief Starts discovery peeer.
+     */
     bool Start(const PeerParameters& parameters, const std::string& user_data);
 
+    /**
+     * \brief Sets user data of the started discovery peer.
+     */
     void SetUserData(const std::string& user_data);
 
+    /**
+     * \brief Lists all discovered peers.
+     */
     std::list<DiscoveredPeer> ListDiscovered() const;
 
-    void Stop(bool wait_for_thread);
+    /**
+     * \brief Stops discovery peer immediately. Working threads will finish execution lately.
+     */
+    void Stop();
+
+    /**
+     * \brief Stops discovery peer and wait for all working threads to finish execution.
+     */
+    void StopAndWaitForThreads();
+
+    /**
+     * \brief Stops discovery peer and potentially waits for all working threads to finish execution.
+     * \deprecated This function is deprecated. Use Stop() and StopAndWaitForThreads() instead.
+     */
+    void Stop(bool wait_for_threads);
 
    private:
     Peer(const Peer&);
@@ -49,7 +72,8 @@ namespace udpdiscovery {
 
    private:
     impl::PeerEnvInterface* env_;
-    impl::MinimalisticThreadInterface* thread_;
+    impl::MinimalisticThreadInterface* sending_thread_;
+    impl::MinimalisticThreadInterface* receiving_thread_;
   };
 
   bool Same(PeerParameters::SamePeerMode mode, const IpPort& lhv, const IpPort& rhv);
