@@ -20,10 +20,18 @@ void PacketHeader::MakeMagic() {
 }
 
 bool PacketHeader::TestMagic() const {
-  if (magic[0] != 'R') return false;
-  if (magic[1] != 'N') return false;
-  if (magic[2] != '6') return false;
-  if (magic[3] != 'U') return false;
+  if (magic[0] != 'R') {
+    return false;
+  }
+  if (magic[1] != 'N') {
+    return false;
+  }
+  if (magic[2] != '6') {
+    return false;
+  }
+  if (magic[3] != 'U') {
+    return false;
+  }
   return true;
 }
 
@@ -31,12 +39,18 @@ bool MakePacket(const PacketHeader& header, const std::string& user_data,
                 size_t padding_size, std::string& packet_data_out) {
   packet_data_out.clear();
 
-  if (user_data.size() > kMaxUserDataSize) return false;
+  if (user_data.size() > kMaxUserDataSize) {
+    return false;
+  }
 
-  if (padding_size > kMaxPaddingSize) return false;
+  if (padding_size > kMaxPaddingSize) {
+    return false;
+  }
 
   size_t packet_size = sizeof(PacketHeader) + user_data.size() + padding_size;
-  if (packet_size > kMaxPacketSize) return false;
+  if (packet_size > kMaxPacketSize) {
+    return false;
+  }
 
   uint16_t user_data_size = (uint16_t)user_data.size();
   uint16_t padding_size_16 = (uint16_t)padding_size;
@@ -79,12 +93,18 @@ bool ParsePacketHeader(const char* buffer, size_t buffer_size,
   buffer_left_out = 0;
   buffer_left_size_out = 0;
 
-  if (buffer_size < sizeof(PacketHeader)) return false;
+  if (buffer_size < sizeof(PacketHeader)) {
+    return false;
+  }
 
   const PacketHeader* header = (const PacketHeader*)buffer;
-  if (!header->TestMagic()) return false;
+  if (!header->TestMagic()) {
+    return false;
+  }
 
-  if (!IsKnownPacketType((PacketType)header->packet_type)) return false;
+  if (!IsKnownPacketType((PacketType)header->packet_type)) {
+    return false;
+  }
 
   PacketHeader parsed_packet_header = (*header);
   parsed_packet_header.application_id =
@@ -109,7 +129,9 @@ bool ParsePacketHeader(const char* buffer, size_t buffer_size,
 bool ReadUserData(const char* buffer, size_t buffer_size,
                   const PacketHeader& header, std::string& user_data_out,
                   const char*& buffer_left_out, size_t& buffer_left_size_out) {
-  if (header.user_data_size > buffer_size) return false;
+  if (header.user_data_size > buffer_size) {
+    return false;
+  }
 
   user_data_out.clear();
   if (header.user_data_size)
@@ -125,7 +147,9 @@ bool ReadUserData(const char* buffer, size_t buffer_size,
 bool ReadPadding(const char* buffer, size_t buffer_size,
                  const PacketHeader& header, const char*& buffer_left_out,
                  size_t& buffer_left_size_out) {
-  if (header.padding_size > buffer_size) return false;
+  if (header.padding_size > buffer_size) {
+    return false;
+  }
 
   buffer_left_out = buffer + header.padding_size;
   buffer_left_size_out = buffer_size - header.padding_size;
