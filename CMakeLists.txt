@@ -1,4 +1,6 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.0)
+
+project(udp-discovery-cpp)
 
 option(BUILD_EXAMPLE "Build example application." OFF)
 option(BUILD_TOOL "Build udp-discovery-tool application." OFF)
@@ -50,3 +52,8 @@ if(BUILD_TOOL)
 	add_executable(udp-discovery-tool ${DISCOVERY_TOOL_SOURCES})
 	target_link_libraries(udp-discovery-tool ${DISCOVERY_TOOL_LIBS})
 endif()
+
+enable_testing()
+
+add_executable(udp-discovery-protocol-test udp_discovery_protocol.cpp udp_discovery_protocol_test.cpp)
+add_test(udp-discovery-protocol-test udp-discovery-protocol-test)
