@@ -98,17 +98,20 @@ inline bool ParsePacket(const char* buffer, size_t buffer_size,
   size_t buffer_left_size = 0;
 
   if (!ParsePacketHeader(buffer, buffer_size, header, buffer_left,
-                         buffer_left_size))
+                         buffer_left_size)) {
     return false;
+  }
 
   std::string user_data;
   if (!ReadUserData(buffer_left, buffer_left_size, header, user_data,
-                    buffer_left, buffer_left_size))
+                    buffer_left, buffer_left_size)) {
     return false;
+  }
 
   if (!ReadPadding(buffer_left, buffer_left_size, header, buffer_left,
-                   buffer_left_size))
+                   buffer_left_size)) {
     return false;
+  }
 
   header_out = header;
   std::swap(user_data_out, user_data);
