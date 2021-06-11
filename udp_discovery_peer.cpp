@@ -24,20 +24,30 @@ typedef socklen_t AddressLenType;
 const SocketType kInvalidSocket = -1;
 #endif
 
+// time
+#if defined(__APPLE__)
+#include <stdint.h>
+#include <mach/mach_time.h>
+#endif
+#if !defined(_WIN32)
+#include <sys/time.h>
+#endif
+#include <time.h>
+
+// threads
+#if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#else
+#include <stdlib.h>
+#include <pthread.h>
+#endif
+
 static
 void InitSockets() {
 #if defined(_WIN32)
   WSADATA wsa_data;
   WSAStartup(MAKEWORD(2, 2), &wsa_data);
-#endif
-}
-
-static
-void CloseSocket(SocketType sock) {
-#if defined(_WIN32)
-  closesocket(sock);
-#else
-  close(sock);
 #endif
 }
 
@@ -53,14 +63,14 @@ void SetSocketTimeout(SocketType sock, int param, int timeout_ms) {
 #endif
 }
 
-// threads
+static
+void CloseSocket(SocketType sock) {
 #if defined(_WIN32)
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
+  closesocket(sock);
 #else
-#include <stdlib.h>
-#include <pthread.h>
+  close(sock);
 #endif
+}
 
 static
 void SleepFor(int time_ms) {
@@ -70,58 +80,6 @@ void SleepFor(int time_ms) {
   usleep(time_ms * 1000);
 #endif
 }
-
-class MinimalisticMutex {
-public:
-  MinimalisticMutex() {
-#if defined(_WIN32)
-    InitializeCriticalSection(&critical_section_);
-#else
-    pthread_mutex_init(&mutex_, 0);
-#endif
-  }
-
-  ~MinimalisticMutex() {
-#if defined(_WIN32)
-    DeleteCriticalSection(&critical_section_);
-#else
-    pthread_mutex_destroy(&mutex_);
-#endif
-  }
-
-  void Lock() {
-#if defined(_WIN32)
-    EnterCriticalSection(&critical_section_);
-#else
-    pthread_mutex_lock(&mutex_);
-#endif
-  }
-
-  void Unlock() {
-#if defined(_WIN32)
-    LeaveCriticalSection(&critical_section_);
-#else
-    pthread_mutex_unlock(&mutex_);
-#endif
-  }
-
-private:
-#if defined(_WIN32)
-  CRITICAL_SECTION critical_section_;
-#else
-  pthread_mutex_t mutex_;
-#endif
-};
-
-// time
-#if defined(__APPLE__)
-#include <stdint.h>
-#include <mach/mach_time.h>
-#endif
-#if !defined(_WIN32)
-#include <sys/time.h>
-#endif
-#include <time.h>
 
 static
 long NowTime() {
@@ -155,7 +113,7 @@ bool IsRightTime(long last_action_time, long now_time, long timeout, long& time_
   }
 
   long time_passed = now_time - last_action_time;
-  if (time_passed > timeout) {
+  if (time_passed >= timeout) {
     time_to_wait_out = timeout - (time_passed - timeout);
     return true;
   }
@@ -171,20 +129,120 @@ namespace udpdiscovery {
       return (uint32_t) rand();
     }
 
+    class MinimalisticMutex {
+     public:
+      MinimalisticMutex() {
+#if defined(_WIN32)
+        InitializeCriticalSection(&critical_section_);
+#else
+        pthread_mutex_init(&mutex_, 0);
+#endif
+      }
+
+      ~MinimalisticMutex() {
+#if defined(_WIN32)
+        DeleteCriticalSection(&critical_section_);
+#else
+        pthread_mutex_destroy(&mutex_);
+#endif
+      }
+
+      void Lock() {
+#if defined(_WIN32)
+        EnterCriticalSection(&critical_section_);
+#else
+        pthread_mutex_lock(&mutex_);
+#endif
+      }
+
+      void Unlock() {
+#if defined(_WIN32)
+        LeaveCriticalSection(&critical_section_);
+#else
+        pthread_mutex_unlock(&mutex_);
+#endif
+      }
+
+    private:
+#if defined(_WIN32)
+      CRITICAL_SECTION critical_section_;
+#else
+      pthread_mutex_t mutex_;
+#endif
+    };
+
+    class MinimalisticThread : public MinimalisticThreadInterface {
+     public:
+#if defined(_WIN32)
+      MinimalisticThread(LPTHREAD_START_ROUTINE f, void* env) : detached_(false) {
+        thread_ = CreateThread(NULL, 0, f, env, 0, NULL);
+      }
+#else
+      MinimalisticThread(void* (*f)(void*), void* env) : detached_(false) {
+        pthread_create(&thread_, 0, f, env);
+      }
+#endif
+
+      ~MinimalisticThread() {
+        detach();
+      }
+
+      void Detach() {
+        detach();
+      }
+
+      void Join() {
+        if (detached_)
+          return;
+
+#if defined(_WIN32)
+        WaitForSingleObject(thread_, INFINITE);
+        CloseHandle(thread_);
+#else
+        pthread_join(thread_, 0);
+#endif
+        detached_ = true;
+      }
+
+     private:
+      void detach() {
+        if (detached_)
+          return;
+
+#if defined(_WIN32)
+        CloseHandle(thread_);
+#else
+        pthread_detach(thread_);
+#endif
+        detached_ = true;
+      }
+
+      bool detached_;
+#if defined(_WIN32)
+      HANDLE thread_;
+#else
+      pthread_t thread_;
+#endif
+    };
+
     class PeerEnv : public PeerEnvInterface {
      public:
       PeerEnv()
           : binding_sock_(kInvalidSocket),
             sock_(kInvalidSocket),
             packet_index_(0),
+            ref_count_(0),
             exit_(false) {
       }
 
       ~PeerEnv() {
-        if (binding_sock_ != kInvalidSocket)
+        if (binding_sock_ != kInvalidSocket) {
           CloseSocket(binding_sock_);
-        if (sock_ != kInvalidSocket)
+        }
+
+        if (sock_ != kInvalidSocket) {
           CloseSocket(sock_);
+        }
       }
 
       bool Start(const PeerParameters& parameters, const std::string& user_data) {
@@ -192,22 +250,22 @@ namespace udpdiscovery {
         user_data_ = user_data;
 
         if (!parameters_.can_use_broadcast() && !parameters_.can_use_multicast()) {
-          std::cerr << "udpdiscovery::Peer can't use broadcast and can't use multicast" << std::endl;
+          std::cerr << "udpdiscovery::Peer can't use broadcast and can't use multicast." << std::endl;
           return false;
         }
 
-        peer_id_ = MakeRandomId();
-
         if (!parameters_.can_discover() && !parameters_.can_be_discovered()) {
-          std::cerr << "udpdiscovery::Peer can't discover and can't be discovered" << std::endl;
+          std::cerr << "udpdiscovery::Peer can't discover and can't be discovered." << std::endl;
           return false;
         }
 
         InitSockets();
 
+        peer_id_ = MakeRandomId();
+
         sock_ = socket(AF_INET, SOCK_DGRAM, 0);
         if (sock_ == kInvalidSocket) {
-          std::cerr << "udpdiscovery::Peer can't create socket" << std::endl;
+          std::cerr << "udpdiscovery::Peer can't create socket." << std::endl;
           return false;
         }
 
@@ -219,7 +277,7 @@ namespace udpdiscovery {
         if (parameters_.can_discover()) {
           binding_sock_ = socket(AF_INET, SOCK_DGRAM, 0);
           if (binding_sock_ == kInvalidSocket) {
-            std::cerr << "udpdiscovery::Peer can't create binding socket" << std::endl;
+            std::cerr << "udpdiscovery::Peer can't create binding socket." << std::endl;
 
             CloseSocket(sock_);
             sock_ = kInvalidSocket;
@@ -254,9 +312,12 @@ namespace udpdiscovery {
             CloseSocket(sock_);
             sock_ = kInvalidSocket;
 
-            std::cerr << "udpdiscovery::Peer can't bind socket" << std::endl;
+            std::cerr << "udpdiscovery::Peer can't bind socket." << std::endl;
             return false;
           }
+
+          // TODO: Implement the way to unblock recvfrom without timeouting.
+          SetSocketTimeout(binding_sock_, SO_RCVTIMEO, 1000);
         }
 
         buffer_.resize(kMaxPacketSize);
@@ -286,18 +347,23 @@ namespace udpdiscovery {
         lock_.Unlock();
       }
 
-      void DoWork() {
+      void SendingThreadFunc() {
+        lock_.Lock();
+        ++ref_count_;
+        lock_.Unlock();
+
         long last_send_time_ms = 0;
-        long last_receive_time_ms = 0;
         long last_delete_idle_ms = 0;
+
         while (true) {
           lock_.Lock();
-          bool exit = exit_;
-          lock_.Unlock();
+          if (exit_) {
+            send(/* under_lock= */ true, kPacketIAmOutOfHere);
 
-          if (exit) {
-            break;
+            decreaseRefCountAndMaybeDestroySelfAndUnlock();
+            return;
           }
+          lock_.Unlock();
 
           long cur_time_ms = NowTime();
           long to_sleep_ms = 0;
@@ -308,25 +374,12 @@ namespace udpdiscovery {
                   cur_time_ms,
                   parameters_.send_timeout_ms(),
                   to_sleep_ms)) {
-              send(kPacketIAmHere);
+              send(/* under_lock= */ false, kPacketIAmHere);
               last_send_time_ms = cur_time_ms;
             }
           }
 
           if (parameters_.can_discover()) {
-            long to_sleep_until_next_receive = 0;
-            if (IsRightTime(
-                  last_receive_time_ms,
-                  cur_time_ms,
-                  parameters_.receive_timeout_ms(),
-                  to_sleep_until_next_receive)) {
-              last_receive_time_ms = cur_time_ms;
-            }
-
-            if (to_sleep_ms > to_sleep_until_next_receive) {
-              to_sleep_ms = to_sleep_until_next_receive;
-            }
-
             long to_sleep_until_next_delete_idle = 0;
             if (IsRightTime(
                   last_delete_idle_ms,
@@ -342,35 +395,56 @@ namespace udpdiscovery {
             }
           }
 
-          if (parameters_.can_discover()) {
-            receiveBlocking(cur_time_ms, to_sleep_ms);
-          } else {
-            SleepFor(to_sleep_ms);
-          }
+          SleepFor(to_sleep_ms);
         }
+      }
 
-        if (parameters_.can_be_discovered()) {
-          send(kPacketIAmOutOfHere);
+      void ReceivingThreadFunc() {
+        lock_.Lock();
+        ++ref_count_;
+        lock_.Unlock();
+
+        while (true) {
+          sockaddr_in from_addr;
+          AddressLenType addr_length = sizeof(sockaddr_in);
+
+          int length = (int) recvfrom(binding_sock_, &buffer_[0], buffer_.size(), 0, (struct sockaddr *) &from_addr, &addr_length);
+
+          lock_.Lock();
+          if (exit_) {
+            decreaseRefCountAndMaybeDestroySelfAndUnlock();
+            return;
+          }
+          lock_.Unlock();
+
+          if (length <= 0) {
+            continue;
+          }
+
+          IpPort from;
+          from.set_port(ntohs(from_addr.sin_port));
+          from.set_ip(ntohl(from_addr.sin_addr.s_addr));
+
+          processReceivedBuffer(NowTime(), from, length);
         }
       }
 
      private:
-      void receiveBlocking(long cur_time_ms, long timeout_ms) {
-        SetSocketTimeout(binding_sock_, SO_RCVTIMEO, parameters_.receive_timeout_ms());
+      void decreaseRefCountAndMaybeDestroySelfAndUnlock() {
+        --ref_count_;
+        int cur_ref_count = ref_count_;
 
-        sockaddr_in from_addr;
-        AddressLenType addr_length = sizeof(sockaddr_in);
+        // This method is performed when the mutex is locked.
+        lock_.Unlock();
 
-        int length = (int) recvfrom(binding_sock_, &buffer_[0], buffer_.size(), 0, (struct sockaddr *) &from_addr, &addr_length);
-        if (length <= 0) {
-          return;
+        if (cur_ref_count <= 0) {
+          if (cur_ref_count < 0) {
+            // Shouldn't be there.
+            std::cerr << "Strangly ref count is less than 0." << std::endl;
+          }
+
+          delete this;
         }
-
-        IpPort from;
-        from.set_port(ntohs(from_addr.sin_port));
-        from.set_ip(ntohl(from_addr.sin_addr.s_addr));
-
-        processReceivedBuffer(cur_time_ms, from, length);
       }
 
       void processReceivedBuffer(long cur_time_ms, const IpPort& from, int packet_length) {
@@ -441,10 +515,14 @@ namespace udpdiscovery {
         lock_.Unlock();
       }
 
-      void send(PacketType packet_type) {
-        lock_.Lock();
+      void send(bool under_lock, PacketType packet_type) {
+        if (!under_lock) {
+          lock_.Lock();
+        }
         std::string user_data = user_data_;
-        lock_.Unlock();
+        if (!under_lock) {
+          lock_.Unlock();
+        }
 
         PacketHeader header;
 
@@ -486,87 +564,46 @@ namespace udpdiscovery {
       PacketIndex packet_index_;
 
       MinimalisticMutex lock_;
+      int ref_count_;
       bool exit_;
       std::string user_data_;
       std::list<DiscoveredPeer> discovered_peers_;
     };
 
-    class MinimalisticThread : public MinimalisticThreadInterface {
-     public:
 #if defined(_WIN32)
-      MinimalisticThread(LPTHREAD_START_ROUTINE f, void* env) : detached_(false) {
-        thread_ = CreateThread(NULL, 0, f, env, 0, NULL);
-      }
-#else
-      MinimalisticThread(void* (*f)(void*), void* env) : detached_(false) {
-        pthread_create(&thread_, 0, f, env);
-      }
-#endif
-
-      ~MinimalisticThread() {
-        detach();
-      }
-
-      void Detach() {
-        detach();
-      }
-
-      void Join() {
-        if (detached_)
-          return;
-
-#if defined(_WIN32)
-        WaitForSingleObject(thread_, INFINITE);
-        CloseHandle(thread_);
-#else
-        pthread_join(thread_, 0);
-#endif
-        detached_ = true;
-      }
-
-     private:
-      void detach() {
-        if (detached_)
-          return;
-
-#if defined(_WIN32)
-        CloseHandle(thread_);
-#else
-        pthread_detach(thread_);
-#endif
-        detached_ = true;
-      }
-
-      bool detached_;
-#if defined(_WIN32)
-      HANDLE thread_;
-#else
-      pthread_t thread_;
-#endif
-    };
-
-#if defined(_WIN32)
-    DWORD WINAPI PeerWork(void* env_typeless) {
+    DWORD WINAPI SendingThreadFunc(void* env_typeless) {
       PeerEnv* env = (PeerEnv*) env_typeless;
-      env->DoWork();
-
-      delete env;
+      env->SendingThreadFunc();
 
       return 0;
     }
 #else
-    void* PeerWork(void* env_typeless) {
+    void* SendingThreadFunc(void* env_typeless) {
       PeerEnv* env = (PeerEnv*) env_typeless;
-      env->DoWork();
+      env->SendingThreadFunc();
 
-      delete env;
+      return 0;
+    }
+#endif
+
+#if defined(_WIN32)
+    DWORD WINAPI ReceivingThreadFunc(void* env_typeless) {
+      PeerEnv* env = (PeerEnv*) env_typeless;
+      env->ReceivingThreadFunc();
+
+      return 0;
+    }
+#else
+    void* ReceivingThreadFunc(void* env_typeless) {
+      PeerEnv* env = (PeerEnv*) env_typeless;
+      env->ReceivingThreadFunc();
 
       return 0;
     }
 #endif
   };
 
-  Peer::Peer() : env_(0), thread_(0) {
+  Peer::Peer() : env_(0), sending_thread_(0), receiving_thread_(0) {
   }
 
   Peer::~Peer() {
@@ -584,10 +621,13 @@ namespace udpdiscovery {
       return false;
     }
 
-    impl::MinimalisticThread* thread = new impl::MinimalisticThread(impl::PeerWork, env);
-
     env_ = env;
-    thread_ = thread;
+
+    sending_thread_ = new impl::MinimalisticThread(impl::SendingThreadFunc, env_);
+
+    if (parameters.can_discover()) {
+      receiving_thread_ = new impl::MinimalisticThread(impl::ReceivingThreadFunc, env_);
+    }
 
     return true;
   }
@@ -606,24 +646,46 @@ namespace udpdiscovery {
     return result;
   }
 
-  void Peer::Stop(bool wait_for_thread) {
+  void Peer::Stop() {
+    Stop(/* wait_for_threads= */ false);
+  }
+
+  void Peer::StopAndWaitForThreads() {
+    Stop(/* wait_for_threads= */ true);
+  }
+
+  void Peer::Stop(bool wait_for_threads) {
     if (!env_) {
       return;
     }
 
     env_->Exit();
 
-    // Thread lives longer than the object itself. So env will be deleted in the thread.
+    // Threads live longer than the object itself. So env will be deleted in one of the threads.
     env_ = 0;
 
-    if (wait_for_thread) {
-      thread_->Join();
+    if (wait_for_threads) {
+      if (sending_thread_) {
+        sending_thread_->Join();
+      }
+
+      if (receiving_thread_) {
+        receiving_thread_->Join();
+      }
     } else {
-      thread_->Detach();
+      if (sending_thread_) {
+        sending_thread_->Detach();
+      }
+
+      if (receiving_thread_) {
+        receiving_thread_->Detach();
+      }
     }
 
-    delete thread_;
-    thread_ = 0;
+    delete sending_thread_;
+    sending_thread_ = 0;
+    delete receiving_thread_;
+    receiving_thread_ = 0;
   }
 
   bool Same(PeerParameters::SamePeerMode mode, const IpPort& lhv, const IpPort& rhv) {
