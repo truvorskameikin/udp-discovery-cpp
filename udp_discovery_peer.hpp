@@ -8,6 +8,10 @@
 
 namespace udpdiscovery {
 namespace impl {
+long NowTime();
+
+void SleepFor(long time_ms);
+
 class PeerEnvInterface {
  public:
   virtual ~PeerEnvInterface() {}

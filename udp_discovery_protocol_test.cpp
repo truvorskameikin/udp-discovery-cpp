@@ -1,19 +1,18 @@
 #include "udp_discovery_protocol.hpp"
 
+#undef NDEBUG
 #include <assert.h>
-
-#include <iostream>
 
 void protocol_StoreBigEndian_8() {
   char buffer[1];
-  udpdiscovery::detail::StoreBigEndian<uint8_t>(15, buffer);
+  udpdiscovery::impl::StoreBigEndian<uint8_t>(15, buffer);
 
   assert(buffer[0] == 15);
 }
 
 void protocol_StoreBigEndian_16() {
   char buffer[2];
-  udpdiscovery::detail::StoreBigEndian<uint16_t>(25 + 256 * 15, buffer);
+  udpdiscovery::impl::StoreBigEndian<uint16_t>(25 + 256 * 15, buffer);
 
   assert(buffer[0] == 15);
   assert(buffer[1] == 25);
@@ -21,7 +20,7 @@ void protocol_StoreBigEndian_16() {
 
 void protocol_StoreBigEndian_32() {
   char buffer[4];
-  udpdiscovery::detail::StoreBigEndian<uint32_t>(
+  udpdiscovery::impl::StoreBigEndian<uint32_t>(
       45 + 256 * 35 + 256 * 256 * 25 + 256 * 256 * 256 * 15, buffer);
 
   assert(buffer[0] == 15);
@@ -41,7 +40,7 @@ void protocol_StoreBigEndian_64() {
   value = value * 256 + 85;
 
   char buffer[8];
-  udpdiscovery::detail::StoreBigEndian<uint64_t>(value, buffer);
+  udpdiscovery::impl::StoreBigEndian<uint64_t>(value, buffer);
 
   assert(buffer[0] == 15);
   assert(buffer[1] == 25);
@@ -56,7 +55,7 @@ void protocol_StoreBigEndian_64() {
 void protocol_ReadBigEndian_8() {
   char buffer[1];
   buffer[0] = 15;
-  uint8_t result = udpdiscovery::detail::ReadBigEndian<uint8_t>(buffer);
+  uint8_t result = udpdiscovery::impl::ReadBigEndian<uint8_t>(buffer);
 
   assert(result == 15);
 }
@@ -65,7 +64,7 @@ void protocol_ReadBigEndian_16() {
   char buffer[2];
   buffer[0] = 15;
   buffer[1] = 25;
-  uint16_t result = udpdiscovery::detail::ReadBigEndian<uint16_t>(buffer);
+  uint16_t result = udpdiscovery::impl::ReadBigEndian<uint16_t>(buffer);
 
   assert(result == 25 + 256 * 15);
 }
@@ -76,7 +75,7 @@ void protocol_ReadBigEndian_32() {
   buffer[1] = 25;
   buffer[2] = 35;
   buffer[3] = 45;
-  uint32_t result = udpdiscovery::detail::ReadBigEndian<uint32_t>(buffer);
+  uint32_t result = udpdiscovery::impl::ReadBigEndian<uint32_t>(buffer);
 
   assert(result == 45 + 256 * 35 + 256 * 256 * 25 + 256 * 256 * 256 * 15);
 }
@@ -91,7 +90,7 @@ void protocol_ReadBigEndian_64() {
   buffer[5] = 65;
   buffer[6] = 75;
   buffer[7] = 85;
-  uint64_t result = udpdiscovery::detail::ReadBigEndian<uint64_t>(buffer);
+  uint64_t result = udpdiscovery::impl::ReadBigEndian<uint64_t>(buffer);
 
   uint64_t value = 15;
   value = value * 256 + 25;

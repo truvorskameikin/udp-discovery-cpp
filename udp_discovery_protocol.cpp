@@ -63,16 +63,16 @@ bool MakePacket(const PacketHeader& header, const std::string& user_data,
 
   (*packet_header) = header;
   packet_header->MakeMagic();
-  detail::StoreBigEndian(header.application_id, &packet_header->application_id);
-  detail::StoreBigEndian(header.peer_id, &packet_header->peer_id);
-  detail::StoreBigEndian(header.packet_index, &packet_header->packet_index);
+  impl::StoreBigEndian(header.application_id, &packet_header->application_id);
+  impl::StoreBigEndian(header.peer_id, &packet_header->peer_id);
+  impl::StoreBigEndian(header.packet_index, &packet_header->packet_index);
   packet_header->reserved[0] = 0;
   packet_header->reserved[1] = 0;
   packet_header->reserved[2] = 0;
   packet_header->reserved[3] = 0;
 
-  detail::StoreBigEndian(user_data_size, &packet_header->user_data_size);
-  detail::StoreBigEndian(padding_size_16, &packet_header->padding_size);
+  impl::StoreBigEndian(user_data_size, &packet_header->user_data_size);
+  impl::StoreBigEndian(padding_size_16, &packet_header->padding_size);
 
   if (!user_data.empty()) {
     std::copy(user_data.begin(), user_data.begin() + user_data_size, ptr);
@@ -108,15 +108,15 @@ bool ParsePacketHeader(const char* buffer, size_t buffer_size,
 
   PacketHeader parsed_packet_header = (*header);
   parsed_packet_header.application_id =
-      detail::ReadBigEndian<uint32_t>(&parsed_packet_header.application_id);
+      impl::ReadBigEndian<uint32_t>(&parsed_packet_header.application_id);
   parsed_packet_header.peer_id =
-      detail::ReadBigEndian<uint32_t>(&parsed_packet_header.peer_id);
+      impl::ReadBigEndian<uint32_t>(&parsed_packet_header.peer_id);
   parsed_packet_header.packet_index =
-      detail::ReadBigEndian<PacketIndex>(&parsed_packet_header.packet_index);
+      impl::ReadBigEndian<PacketIndex>(&parsed_packet_header.packet_index);
   parsed_packet_header.user_data_size =
-      detail::ReadBigEndian<uint16_t>(&parsed_packet_header.user_data_size);
+      impl::ReadBigEndian<uint16_t>(&parsed_packet_header.user_data_size);
   parsed_packet_header.padding_size =
-      detail::ReadBigEndian<uint16_t>(&parsed_packet_header.padding_size);
+      impl::ReadBigEndian<uint16_t>(&parsed_packet_header.padding_size);
 
   header_out = parsed_packet_header;
 

@@ -57,3 +57,6 @@ enable_testing()
 
 add_executable(udp-discovery-protocol-test udp_discovery_protocol.cpp udp_discovery_protocol_test.cpp)
 add_test(udp-discovery-protocol-test udp-discovery-protocol-test)
+
+add_executable(udp-discovery-peer-e2e-test udp_discovery_protocol.cpp udp_discovery_peer.cpp udp_discovery_peer_e2e_test.cpp)
+add_test(udp-discovery-peer-e2e-test udp-discovery-peer-e2e-test)

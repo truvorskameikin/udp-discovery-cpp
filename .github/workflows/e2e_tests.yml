@@ -1,4 +1,4 @@
-name: UnitTests
+name: E2eTests
 
 on:
   push:
@@ -33,4 +33,4 @@ jobs:
       working-directory: ${{github.workspace}}/build
       # Execute tests defined by the CMake configuration.
       # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
-      run: ctest -C ${{env.BUILD_TYPE}} -E udp-discovery-peer-e2e-test
+      run: ctest -C ${{env.BUILD_TYPE}} -R udp-discovery-peer-e2e-test

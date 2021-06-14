@@ -6,7 +6,7 @@
 #include <string>
 
 namespace udpdiscovery {
-namespace detail {
+namespace impl {
 template <typename ValueType>
 void StoreBigEndian(ValueType value, void* out) {
   unsigned char* out_typed = (unsigned char*)out;
@@ -30,7 +30,7 @@ ValueType ReadBigEndian(const void* in) {
 
   return result;
 }
-}  // namespace detail
+}  // namespace impl
 
 enum PacketType { kPacketIAmHere, kPacketIAmOutOfHere };
 
