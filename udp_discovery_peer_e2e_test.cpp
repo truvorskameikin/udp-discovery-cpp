@@ -78,6 +78,7 @@ void peer_udp_broadcast_discovery() {
   udpdiscovery::Peer peer1;
   peer1.Start(peer_parameters, "peer 1");
 
+  // TODO: Understand why do we need this timeout.
   udpdiscovery::impl::SleepFor(1000);
 
   udpdiscovery::Peer peer2;
