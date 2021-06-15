@@ -73,15 +73,31 @@ static void CloseSocket(SocketType sock) {
 #endif
 }
 
-static void SleepFor(int time_ms) {
-#if defined(_WIN32)
-  Sleep(time_ms);
-#else
-  usleep(time_ms * 1000);
-#endif
+static bool IsRightTime(long last_action_time, long now_time, long timeout,
+                        long& time_to_wait_out) {
+  if (last_action_time == 0) {
+    time_to_wait_out = timeout;
+    return true;
+  }
+
+  long time_passed = now_time - last_action_time;
+  if (time_passed >= timeout) {
+    time_to_wait_out = timeout - (time_passed - timeout);
+    return true;
+  }
+
+  time_to_wait_out = timeout - time_passed;
+  return false;
 }
 
-static long NowTime() {
+static uint32_t MakeRandomId() {
+  srand((unsigned int)time(0));
+  return (uint32_t)rand();
+}
+
+namespace udpdiscovery {
+namespace impl {
+long NowTime() {
 #if defined(_WIN32)
   LARGE_INTEGER freq;
   if (!QueryPerformanceFrequency(&freq)) {
@@ -105,28 +121,12 @@ static long NowTime() {
   return 0;
 }
 
-static bool IsRightTime(long last_action_time, long now_time, long timeout,
-                        long& time_to_wait_out) {
-  if (last_action_time == 0) {
-    time_to_wait_out = timeout;
-    return true;
-  }
-
-  long time_passed = now_time - last_action_time;
-  if (time_passed >= timeout) {
-    time_to_wait_out = timeout - (time_passed - timeout);
-    return true;
-  }
-
-  time_to_wait_out = timeout - time_passed;
-  return false;
-}
-
-namespace udpdiscovery {
-namespace impl {
-uint32_t MakeRandomId() {
-  srand((unsigned int)time(0));
-  return (uint32_t)rand();
+void SleepFor(long time_ms) {
+#if defined(_WIN32)
+  Sleep((DWORD)time_ms);
+#else
+  usleep((useconds_t)(time_ms * 1000));
+#endif
 }
 
 class MinimalisticMutex {
