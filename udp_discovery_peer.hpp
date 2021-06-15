@@ -67,7 +67,9 @@ class Peer {
 
   /**
    * \brief Stops discovery peer and potentially waits for all working threads
-   * to finish execution. \deprecated This function is deprecated. Use Stop()
+   * to finish execution.
+   *
+   * \deprecated This function is deprecated. Use Stop()
    * and StopAndWaitForThreads() instead.
    */
   void Stop(bool wait_for_threads);
