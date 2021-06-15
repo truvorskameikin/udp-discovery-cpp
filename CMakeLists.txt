@@ -16,11 +16,8 @@ set(LIB_HEADERS
 
 add_library(udp-discovery STATIC ${LIB_SOURCES} ${LIB_HEADERS})
 
-if(BUILD_EXAMPLE OR BUILD_TOOL)
-	if(APPLE)
-	elseif(UNIX)
-		set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pthread")
-	endif()
+if(UNIX)
+	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pthread")
 endif()
 
 if(BUILD_EXAMPLE)
