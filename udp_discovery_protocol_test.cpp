@@ -127,6 +127,12 @@ void protocol_MakePacket_WithBigPadding_FailsToCreatePacket() {
   assert(result == false);
 }
 
+void protocol_MakePacketHeaderMagic_TestPacketHeaderMagic() {
+  udpdiscovery::PacketHeader packet_header;
+  udpdiscovery::MakePacketHeaderMagic(packet_header);
+  assert(udpdiscovery::TestPacketHeaderMagic(packet_header) == true);
+}
+
 int main() {
   protocol_StoreBigEndian_8();
   protocol_StoreBigEndian_16();

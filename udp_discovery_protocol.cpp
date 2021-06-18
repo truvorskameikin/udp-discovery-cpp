@@ -3,36 +3,40 @@
 #include <algorithm>
 
 namespace udpdiscovery {
-PacketHeader::PacketHeader() : packet_type(kPacketIAmHere), packet_index(0) {
-  MakeMagic();
 
-  reserved[0] = 0;
-  reserved[1] = 0;
-  reserved[2] = 0;
-  reserved[3] = 0;
+void MakePacketHeaderMagic(PacketHeader& packet_header_out) {
+  packet_header_out.magic[0] = 'R';
+  packet_header_out.magic[1] = 'N';
+  packet_header_out.magic[2] = '6';
+  packet_header_out.magic[3] = 'U';
 }
 
-void PacketHeader::MakeMagic() {
-  magic[0] = 'R';
-  magic[1] = 'N';
-  magic[2] = '6';
-  magic[3] = 'U';
-}
-
-bool PacketHeader::TestMagic() const {
-  if (magic[0] != 'R') {
+bool TestPacketHeaderMagic(const PacketHeader& packet_header) {
+  if (packet_header.magic[0] != 'R') {
     return false;
   }
-  if (magic[1] != 'N') {
+  if (packet_header.magic[1] != 'N') {
     return false;
   }
-  if (magic[2] != '6') {
+  if (packet_header.magic[2] != '6') {
     return false;
   }
-  if (magic[3] != 'U') {
+  if (packet_header.magic[3] != 'U') {
     return false;
   }
   return true;
+}
+
+void FillPacketHeader(PacketType packet_type, uint32_t application_id,
+                      uint32_t peer_id, uint64_t packet_index,
+                      PacketHeader& packet_header_out) {
+  MakePacketHeaderMagic(packet_header_out);
+  packet_header_out.packet_version = kCurrentVersion;
+
+  packet_header_out.packet_type = packet_type;
+  packet_header_out.application_id = application_id;
+  packet_header_out.peer_id = peer_id;
+  packet_header_out.packet_index = packet_index;
 }
 
 bool MakePacket(const PacketHeader& header, const std::string& user_data,
@@ -62,14 +66,12 @@ bool MakePacket(const PacketHeader& header, const std::string& user_data,
   ptr += sizeof(PacketHeader);
 
   (*packet_header) = header;
-  packet_header->MakeMagic();
   impl::StoreBigEndian(header.application_id, &packet_header->application_id);
   impl::StoreBigEndian(header.peer_id, &packet_header->peer_id);
   impl::StoreBigEndian(header.packet_index, &packet_header->packet_index);
   packet_header->reserved[0] = 0;
   packet_header->reserved[1] = 0;
   packet_header->reserved[2] = 0;
-  packet_header->reserved[3] = 0;
 
   impl::StoreBigEndian(user_data_size, &packet_header->user_data_size);
   impl::StoreBigEndian(padding_size_16, &packet_header->padding_size);
@@ -98,11 +100,15 @@ bool ParsePacketHeader(const char* buffer, size_t buffer_size,
   }
 
   const PacketHeader* header = (const PacketHeader*)buffer;
-  if (!header->TestMagic()) {
+  if (!TestPacketHeaderMagic(*header)) {
     return false;
   }
 
-  if (!IsKnownPacketType((PacketType)header->packet_type)) {
+  if (!IsKnownPacketType(header->packet_type)) {
+    return false;
+  }
+
+  if (!IsSupportedPacketVersion(header->packet_version)) {
     return false;
   }
 
@@ -112,7 +118,7 @@ bool ParsePacketHeader(const char* buffer, size_t buffer_size,
   parsed_packet_header.peer_id =
       impl::ReadBigEndian<uint32_t>(&parsed_packet_header.peer_id);
   parsed_packet_header.packet_index =
-      impl::ReadBigEndian<PacketIndex>(&parsed_packet_header.packet_index);
+      impl::ReadBigEndian<uint64_t>(&parsed_packet_header.packet_index);
   parsed_packet_header.user_data_size =
       impl::ReadBigEndian<uint16_t>(&parsed_packet_header.user_data_size);
   parsed_packet_header.padding_size =

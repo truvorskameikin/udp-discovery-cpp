@@ -531,12 +531,8 @@ class PeerEnv : public PeerEnvInterface {
     }
 
     PacketHeader header;
-
-    header.packet_type = packet_type;
-
-    header.application_id = parameters_.application_id();
-    header.peer_id = peer_id_;
-    header.packet_index = packet_index_;
+    FillPacketHeader(packet_type, parameters_.application_id(), peer_id_,
+                     packet_index_, header);
 
     ++packet_index_;
 
@@ -568,7 +564,7 @@ class PeerEnv : public PeerEnvInterface {
   std::vector<char> buffer_;
   SocketType binding_sock_;
   SocketType sock_;
-  PacketIndex packet_index_;
+  uint64_t packet_index_;
 
   MinimalisticMutex lock_;
   int ref_count_;

@@ -34,7 +34,7 @@ ValueType ReadBigEndian(const void* in) {
 
 enum PacketType { kPacketIAmHere, kPacketIAmOutOfHere };
 
-inline bool IsKnownPacketType(PacketType packet_type) {
+inline bool IsKnownPacketType(unsigned char packet_type) {
   switch (packet_type) {
     case kPacketIAmHere:
       return true;
@@ -45,31 +45,65 @@ inline bool IsKnownPacketType(PacketType packet_type) {
   return false;
 }
 
-typedef uint64_t PacketIndex;
+enum PacketVersion {
+  kVersion0 = 0,
+  kVersion1 = 1,
+  kCurrentVersion = kVersion1,
+};
+
+inline bool IsSupportedPacketVersion(unsigned char packet_version) {
+  switch (packet_version) {
+    case kVersion0:
+      return true;
+    case kVersion1:
+      return true;
+  }
+
+  return false;
+}
 
 #pragma pack(push)
 #pragma pack(1)
-struct PacketHeader {
-  PacketHeader();
+struct PacketHeaderVersion {
+  unsigned char magic[4];
+  unsigned char packet_version;
+  unsigned char reserved[3];
+};
 
-  void MakeMagic();
-
-  bool TestMagic() const;
-
+struct PacketHeaderV0 {
   unsigned char magic[4];
   unsigned char reserved[4];
   unsigned char packet_type;
   uint32_t application_id;
   uint32_t peer_id;
-  PacketIndex packet_index;
+  uint64_t packet_index;
   uint16_t user_data_size;
   uint16_t padding_size;
 };
+
+struct PacketHeaderV1 : public PacketHeaderVersion {
+  unsigned char packet_type;
+  uint32_t application_id;
+  uint32_t peer_id;
+  uint64_t packet_index;
+  uint16_t user_data_size;
+  uint16_t padding_size;
+};
+
+struct PacketHeader : public PacketHeaderV1 {};
 #pragma pack(pop)
 
 const size_t kMaxUserDataSize = 32768;
 const size_t kMaxPaddingSize = 32768;
 const size_t kMaxPacketSize = 65536;
+
+void MakePacketHeaderMagic(PacketHeader& packet_header_out);
+
+bool TestPacketHeaderMagic(const PacketHeader& packet_header);
+
+void FillPacketHeader(PacketType packet_type, uint32_t application_id,
+                      uint32_t peer_id, uint64_t packet_index,
+                      PacketHeader& packet_header_out);
 
 bool MakePacket(const PacketHeader& header, const std::string& user_data,
                 size_t padding_size, std::string& packet_data_out);
