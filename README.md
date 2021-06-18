@@ -1,6 +1,6 @@
 # Local network UDP discovery for C++
 
-![Unit tests](https://github.com/truvorskameikin/udp-discovery-cpp/actions/workflows/unit_tests.yml/badge.svg?branch=master)
+![Unit tests](https://github.com/truvorskameikin/udp-discovery-cpp/actions/workflows/unit_tests.yml/badge.svg?branch=master) ![E2E tests](https://github.com/truvorskameikin/udp-discovery-cpp/actions/workflows/e2e_tests.yml/badge.svg?branch=master)
 
 A small library to add local network discovery feature to your C++ programs with no dependencies
 
