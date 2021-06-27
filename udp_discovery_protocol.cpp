@@ -1,165 +1,216 @@
 #include "udp_discovery_protocol.hpp"
 
-#include <algorithm>
+#include <iostream>
 
 namespace udpdiscovery {
 
-void MakePacketHeaderMagic(PacketHeader& packet_header_out) {
-  packet_header_out.magic[0] = 'R';
-  packet_header_out.magic[1] = 'N';
-  packet_header_out.magic[2] = '6';
-  packet_header_out.magic[3] = 'U';
-}
+namespace impl {
+bool SerializeString(SerializeDirection direction, std::string* value,
+                     int value_size, BufferView* buffer_view) {
+  switch (direction) {
+    case kSerialize:
+      buffer_view->InsertBack(*value, value_size);
+      break;
 
-bool TestPacketHeaderMagic(const PacketHeader& packet_header) {
-  if (packet_header.magic[0] != 'R') {
-    return false;
-  }
-  if (packet_header.magic[1] != 'N') {
-    return false;
-  }
-  if (packet_header.magic[2] != '6') {
-    return false;
-  }
-  if (packet_header.magic[3] != 'U') {
-    return false;
-  }
-  return true;
-}
-
-void FillPacketHeader(PacketType packet_type, uint32_t application_id,
-                      uint32_t peer_id, uint64_t packet_index,
-                      PacketHeader& packet_header_out) {
-  MakePacketHeaderMagic(packet_header_out);
-  packet_header_out.packet_version = kCurrentVersion;
-
-  packet_header_out.packet_type = packet_type;
-  packet_header_out.application_id = application_id;
-  packet_header_out.peer_id = peer_id;
-  packet_header_out.packet_index = packet_index;
-}
-
-bool MakePacket(const PacketHeader& header, const std::string& user_data,
-                size_t padding_size, std::string& packet_data_out) {
-  packet_data_out.clear();
-
-  if (user_data.size() > kMaxUserDataSize) {
-    return false;
-  }
-
-  if (padding_size > kMaxPaddingSize) {
-    return false;
-  }
-
-  size_t packet_size = sizeof(PacketHeader) + user_data.size() + padding_size;
-  if (packet_size > kMaxPacketSize) {
-    return false;
-  }
-
-  uint16_t user_data_size = (uint16_t)user_data.size();
-  uint16_t padding_size_16 = (uint16_t)padding_size;
-
-  packet_data_out.resize(packet_size);
-  char* ptr = (char*)packet_data_out.data();
-
-  PacketHeader* packet_header = (PacketHeader*)ptr;
-  ptr += sizeof(PacketHeader);
-
-  (*packet_header) = header;
-  impl::StoreBigEndian(header.application_id, &packet_header->application_id);
-  impl::StoreBigEndian(header.peer_id, &packet_header->peer_id);
-  impl::StoreBigEndian(header.packet_index, &packet_header->packet_index);
-  packet_header->reserved[0] = 0;
-  packet_header->reserved[1] = 0;
-  packet_header->reserved[2] = 0;
-
-  impl::StoreBigEndian(user_data_size, &packet_header->user_data_size);
-  impl::StoreBigEndian(padding_size_16, &packet_header->padding_size);
-
-  if (!user_data.empty()) {
-    std::copy(user_data.begin(), user_data.begin() + user_data_size, ptr);
-    ptr += user_data.size();
-  }
-
-  for (size_t i = 0; i < padding_size_16; ++i) {
-    ptr[i] = 0;
-    ++ptr;
+    case kParse:
+      if (!buffer_view->CanRead(value_size)) {
+        return false;
+      }
+      value->resize(value_size);
+      for (int i = 0; i < (int)value_size; ++i) {
+        (*value)[i] = buffer_view->Read();
+      }
+      break;
   }
 
   return true;
 }
 
-bool ParsePacketHeader(const char* buffer, size_t buffer_size,
-                       PacketHeader& header_out, const char*& buffer_left_out,
-                       size_t& buffer_left_size_out) {
-  buffer_left_out = 0;
-  buffer_left_size_out = 0;
+ProtocolVersion GetProtocolVersion(uint8_t version) {
+  if (version == kProtocolVersion0) {
+    return kProtocolVersion0;
+  } else if (version == kProtocolVersion1) {
+    return kProtocolVersion1;
+  }
+  return kProtocolVersionUnknown;
+}
 
-  if (buffer_size < sizeof(PacketHeader)) {
+PacketType GetPacketType(uint8_t packet_type) {
+  if (packet_type == kPacketIAmHere) {
+    return kPacketIAmHere;
+  } else if (packet_type == kPacketIAmOutOfHere) {
+    return kPacketIAmOutOfHere;
+  }
+  return kPacketTypeUnknown;
+}
+}  // namespace impl
+
+bool Packet::Serialize(ProtocolVersion protocol_version,
+                       std::string& buffer_out) {
+  if (protocol_version == kProtocolVersion0) {
+    if (user_data_.size() > kMaxUserDataSizeV0) {
+      return false;
+    }
+  } else if (protocol_version == kProtocolVersion1) {
+    if (user_data_.size() > kMaxUserDataSizeV1) {
+      return false;
+    }
+  }
+
+  impl::BufferView buffer_view(&buffer_out);
+  return Serialize(protocol_version, impl::kSerialize, &buffer_view);
+}
+
+ProtocolVersion Packet::Parse(const std::string& buffer) {
+  impl::BufferView buffer_view(const_cast<std::string*>(&buffer));
+
+  uint8_t magic[4];
+  if (!impl::SerializeUnsignedIntegerBigEndian(impl::kParse, &magic[0],
+                                               &buffer_view)) {
+    return kProtocolVersionUnknown;
+  }
+  if (!impl::SerializeUnsignedIntegerBigEndian(impl::kParse, &magic[1],
+                                               &buffer_view)) {
+    return kProtocolVersionUnknown;
+  }
+  if (!impl::SerializeUnsignedIntegerBigEndian(impl::kParse, &magic[2],
+                                               &buffer_view)) {
+    return kProtocolVersionUnknown;
+  }
+  if (!impl::SerializeUnsignedIntegerBigEndian(impl::kParse, &magic[3],
+                                               &buffer_view)) {
+    return kProtocolVersionUnknown;
+  }
+
+  uint8_t version = kProtocolVersion0;
+  if (!impl::SerializeUnsignedIntegerBigEndian(impl::kParse, &version,
+                                               &buffer_view)) {
+    return kProtocolVersionUnknown;
+  }
+
+  ProtocolVersion protocol_version = kProtocolVersionUnknown;
+  if (magic[0] == 'R' && magic[1] == 'N' && magic[2] == '6' &&
+      magic[3] == 'U') {
+    protocol_version = kProtocolVersion0;
+  } else if (magic[0] == 'S' && magic[1] == 'O' && magic[2] == '7' &&
+             magic[3] == 'V') {
+    protocol_version = impl::GetProtocolVersion(version);
+    if (protocol_version == kProtocolVersionUnknown ||
+        protocol_version == kProtocolVersion0) {
+      return kProtocolVersionUnknown;
+    }
+  }
+
+  if (protocol_version == kProtocolVersionUnknown) {
+    return kProtocolVersionUnknown;
+  }
+
+  if (!Serialize(protocol_version, impl::kParse, &buffer_view)) {
+    return kProtocolVersionUnknown;
+  }
+
+  return protocol_version;
+}
+
+bool Packet::Serialize(ProtocolVersion protocol_version,
+                       impl::SerializeDirection direction,
+                       impl::BufferView* buffer_view) {
+  if (direction == impl::kSerialize) {
+    if (protocol_version == kProtocolVersion0) {
+      buffer_view->push_back('R');
+      buffer_view->push_back('N');
+      buffer_view->push_back('6');
+      buffer_view->push_back('U');
+    } else if (protocol_version == kProtocolVersion1) {
+      buffer_view->push_back('S');
+      buffer_view->push_back('O');
+      buffer_view->push_back('7');
+      buffer_view->push_back('V');
+    } else {
+      return false;
+    }
+
+    uint8_t version = protocol_version;
+    impl::SerializeUnsignedIntegerBigEndian(impl::kSerialize, &version,
+                                            buffer_view);
+  }
+
+  uint8_t reserved = 0;
+  for (int i = 0; i < 3; ++i) {
+    if (!impl::SerializeUnsignedIntegerBigEndian(direction, &reserved,
+                                                 buffer_view)) {
+      return false;
+    }
+  }
+
+  if (!impl::SerializeUnsignedIntegerBigEndian(direction, &packet_type_,
+                                               buffer_view)) {
     return false;
   }
 
-  const PacketHeader* header = (const PacketHeader*)buffer;
-  if (!TestPacketHeaderMagic(*header)) {
+  if (direction == impl::kParse) {
+    if (impl::GetPacketType(packet_type_) == kPacketTypeUnknown) {
+      return false;
+    }
+  }
+
+  if (!impl::SerializeUnsignedIntegerBigEndian(direction, &application_id_,
+                                               buffer_view)) {
     return false;
   }
 
-  if (!IsKnownPacketType(header->packet_type)) {
+  if (!impl::SerializeUnsignedIntegerBigEndian(direction, &peer_id_,
+                                               buffer_view)) {
     return false;
   }
 
-  if (!IsSupportedPacketVersion(header->packet_version)) {
+  if (!impl::SerializeUnsignedIntegerBigEndian(direction, &snapshot_index_,
+                                               buffer_view)) {
     return false;
   }
 
-  PacketHeader parsed_packet_header = (*header);
-  parsed_packet_header.application_id =
-      impl::ReadBigEndian<uint32_t>(&parsed_packet_header.application_id);
-  parsed_packet_header.peer_id =
-      impl::ReadBigEndian<uint32_t>(&parsed_packet_header.peer_id);
-  parsed_packet_header.packet_index =
-      impl::ReadBigEndian<uint64_t>(&parsed_packet_header.packet_index);
-  parsed_packet_header.user_data_size =
-      impl::ReadBigEndian<uint16_t>(&parsed_packet_header.user_data_size);
-  parsed_packet_header.padding_size =
-      impl::ReadBigEndian<uint16_t>(&parsed_packet_header.padding_size);
+  uint16_t user_data_size = (uint16_t)user_data_.size();
+  if (!impl::SerializeUnsignedIntegerBigEndian(direction, &user_data_size,
+                                               buffer_view)) {
+    return false;
+  }
 
-  header_out = parsed_packet_header;
+  if (direction == impl::kParse) {
+    if (protocol_version == kProtocolVersion0) {
+      if (user_data_size > kMaxUserDataSizeV0) {
+        return false;
+      }
+    } else if (protocol_version == kProtocolVersion1) {
+      if (user_data_size > kMaxUserDataSizeV1) {
+        return false;
+      }
+    }
+  }
 
-  buffer_left_out = buffer + sizeof(PacketHeader);
-  buffer_left_size_out = buffer_size - sizeof(PacketHeader);
+  uint16_t padding_size = 0;
+  if (protocol_version == kProtocolVersion0) {
+    if (!impl::SerializeUnsignedIntegerBigEndian(direction, &padding_size,
+                                                 buffer_view)) {
+      return false;
+    }
+  }
+
+  // End of serializing header.
+
+  if (direction == impl::kParse) {
+    if (buffer_view->LeftUnparsed() != user_data_size + padding_size) {
+      return false;
+    }
+  }
+
+  if (!impl::SerializeString(direction, &user_data_, user_data_size,
+                             buffer_view)) {
+    return false;
+  }
+
+  // Do not serialize padding even for protocol version 0.
 
   return true;
 }
 
-bool ReadUserData(const char* buffer, size_t buffer_size,
-                  const PacketHeader& header, std::string& user_data_out,
-                  const char*& buffer_left_out, size_t& buffer_left_size_out) {
-  if (header.user_data_size > buffer_size) {
-    return false;
-  }
-
-  user_data_out.clear();
-  if (header.user_data_size)
-    user_data_out.insert(user_data_out.end(), buffer,
-                         buffer + header.user_data_size);
-
-  buffer_left_out = buffer + header.user_data_size;
-  buffer_left_size_out = buffer_size - header.user_data_size;
-
-  return true;
-}
-
-bool ReadPadding(const char* buffer, size_t buffer_size,
-                 const PacketHeader& header, const char*& buffer_left_out,
-                 size_t& buffer_left_size_out) {
-  if (header.padding_size > buffer_size) {
-    return false;
-  }
-
-  buffer_left_out = buffer + header.padding_size;
-  buffer_left_size_out = buffer_size - header.padding_size;
-
-  return true;
-}
 }  // namespace udpdiscovery

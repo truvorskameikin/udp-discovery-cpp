@@ -448,58 +448,55 @@ class PeerEnv : public PeerEnvInterface {
 
   void processReceivedBuffer(long cur_time_ms, const IpPort& from,
                              int packet_length) {
-    if (packet_length >= sizeof(PacketHeader)) {
-      PacketHeader header;
-      std::string user_data;
+    PacketHeader header;
+    std::string user_data;
 
-      if (ParsePacket(buffer_.data(), packet_length, header, user_data)) {
-        bool accept_packet = false;
-        if (parameters_.application_id() == header.application_id) {
-          if (!parameters_.discover_self()) {
-            if (header.peer_id != peer_id_) {
-              accept_packet = true;
-            }
-          } else {
+    if (ParsePacket(buffer_.data(), packet_length, header, user_data)) {
+      bool accept_packet = false;
+      if (parameters_.application_id() == header.application_id) {
+        if (!parameters_.discover_self()) {
+          if (header.peer_id != peer_id_) {
             accept_packet = true;
           }
+        } else {
+          accept_packet = true;
+        }
+      }
+
+      if (accept_packet) {
+        lock_.Lock();
+
+        std::list<DiscoveredPeer>::iterator find_it = discovered_peers_.end();
+        for (std::list<DiscoveredPeer>::iterator it = discovered_peers_.begin();
+             it != discovered_peers_.end(); ++it) {
+          if (Same(parameters_.same_peer_mode(), (*it).ip_port(), from)) {
+            find_it = it;
+            break;
+          }
         }
 
-        if (accept_packet) {
-          lock_.Lock();
-
-          std::list<DiscoveredPeer>::iterator find_it = discovered_peers_.end();
-          for (std::list<DiscoveredPeer>::iterator it =
-                   discovered_peers_.begin();
-               it != discovered_peers_.end(); ++it) {
-            if (Same(parameters_.same_peer_mode(), (*it).ip_port(), from)) {
-              find_it = it;
-              break;
+        if (header.packet_type == kPacketIAmHere) {
+          if (find_it == discovered_peers_.end()) {
+            discovered_peers_.push_back(DiscoveredPeer());
+            discovered_peers_.back().set_ip_port(from);
+            discovered_peers_.back().SetUserData(user_data,
+                                                 header.packet_index);
+            discovered_peers_.back().set_last_updated(cur_time_ms);
+          } else {
+            bool update_user_data =
+                ((*find_it).last_received_packet() < header.packet_index);
+            if (update_user_data) {
+              (*find_it).SetUserData(user_data, header.packet_index);
             }
+            (*find_it).set_last_updated(cur_time_ms);
           }
-
-          if (header.packet_type == kPacketIAmHere) {
-            if (find_it == discovered_peers_.end()) {
-              discovered_peers_.push_back(DiscoveredPeer());
-              discovered_peers_.back().set_ip_port(from);
-              discovered_peers_.back().SetUserData(user_data,
-                                                   header.packet_index);
-              discovered_peers_.back().set_last_updated(cur_time_ms);
-            } else {
-              bool update_user_data =
-                  ((*find_it).last_received_packet() < header.packet_index);
-              if (update_user_data) {
-                (*find_it).SetUserData(user_data, header.packet_index);
-              }
-              (*find_it).set_last_updated(cur_time_ms);
-            }
-          } else if (header.packet_type == kPacketIAmOutOfHere) {
-            if (find_it != discovered_peers_.end()) {
-              discovered_peers_.erase(find_it);
-            }
+        } else if (header.packet_type == kPacketIAmOutOfHere) {
+          if (find_it != discovered_peers_.end()) {
+            discovered_peers_.erase(find_it);
           }
-
-          lock_.Unlock();
         }
+
+        lock_.Unlock();
       }
     }
   }
@@ -537,7 +534,7 @@ class PeerEnv : public PeerEnvInterface {
     ++packet_index_;
 
     std::string packet_data;
-    if (MakePacket(header, user_data, packet_data)) {
+    if (MakePacket(header, user_data, /* padding_size= */ 0, packet_data)) {
       sockaddr_in addr;
       memset((char*)&addr, 0, sizeof(sockaddr_in));
 
