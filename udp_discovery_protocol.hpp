@@ -81,10 +81,13 @@ bool SerializeString(SerializeDirection direction, std::string* value,
 
 const size_t kMaxUserDataSizeV0 = 32768;
 const size_t kMaxUserDataSizeV1 = 4096;
+// Used for receiving buffer.
+const size_t kMaxPacketSize = 65536;
 
 enum ProtocolVersion {
   kProtocolVersion0,
   kProtocolVersion1,
+  kProtocolVersionCurrent = kProtocolVersion1,
   kProtocolVersionUnknown = 255
 };
 
@@ -127,6 +130,10 @@ class Packet {
   const std::string& user_data() const { return user_data_; }
 
   void set_user_data(const std::string& user_data) { user_data_ = user_data; }
+
+  void SwapUserData(std::string& user_data) {
+    std::swap(user_data_, user_data);
+  }
 
   // Writes the packet to the buffer for sending. Uses provided protocol_version
   // to construct data on wire. This function should return false in the case
