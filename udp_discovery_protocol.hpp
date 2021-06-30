@@ -80,6 +80,7 @@ bool SerializeString(SerializeDirection direction, std::string* value,
 }  // namespace impl
 
 const size_t kMaxUserDataSizeV0 = 32768;
+const size_t kMaxPaddingSizeV0 = 32768;
 const size_t kMaxUserDataSizeV1 = 4096;
 // Used for receiving buffer.
 const size_t kMaxPacketSize = 65536;

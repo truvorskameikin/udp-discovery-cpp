@@ -193,6 +193,10 @@ bool Packet::Serialize(ProtocolVersion protocol_version,
                                                  buffer_view)) {
       return false;
     }
+
+    if (padding_size > kMaxPaddingSizeV0) {
+      return false;
+    }
   }
 
   // End of serializing header.

@@ -487,7 +487,8 @@ class PeerEnv : public PeerEnvInterface {
             bool update_user_data =
                 ((*find_it).last_received_packet() < packet.snapshot_index());
             if (update_user_data) {
-              (*find_it).SetUserData(packet.user_data(), packet.snapshot_index());
+              (*find_it).SetUserData(packet.user_data(),
+                                     packet.snapshot_index());
             }
             (*find_it).set_last_updated(cur_time_ms);
           }

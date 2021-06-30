@@ -90,15 +90,15 @@ void StoreBigEndian(ValueType value, void* out) {
   }
 }
 
-void protocol_Parse_withWellFormedPacketV0_readsPacket() {
-  std::string user_data(
-      "User data with non-printable chars: \250, \251, \252, \253, \254, \255");
-  int padding_size = 100;
-  std::string packet_buffer;
-  packet_buffer.resize(sizeof(PacketHeaderV0) + user_data.size() +
-                       padding_size);
+const uint32_t kApplicationId = 12345;
+const uint32_t kPeerId = 54321;
+const uint64_t kSnapshotIndex = 1234567890;
 
-  char* ptr = const_cast<char*>(packet_buffer.data());
+std::string CreatePacketV0(const std::string& user_data, size_t padding_size) {
+  std::string result;
+  result.resize(sizeof(PacketHeaderV0) + user_data.size() + padding_size);
+
+  char* ptr = const_cast<char*>(result.data());
   PacketHeaderV0* packet_header = (PacketHeaderV0*)ptr;
   ptr += sizeof(PacketHeaderV0);
 
@@ -111,9 +111,9 @@ void protocol_Parse_withWellFormedPacketV0_readsPacket() {
   packet_header->reserved[2] = 0;
   packet_header->reserved[3] = 0;
   packet_header->packet_type = udpdiscovery::kPacketIAmHere;
-  StoreBigEndian<uint32_t>(12345, &packet_header->application_id);
-  StoreBigEndian<uint32_t>(54321, &packet_header->peer_id);
-  StoreBigEndian<uint64_t>(1234567890, &packet_header->packet_index);
+  StoreBigEndian<uint32_t>(kApplicationId, &packet_header->application_id);
+  StoreBigEndian<uint32_t>(kPeerId, &packet_header->peer_id);
+  StoreBigEndian<uint64_t>(kSnapshotIndex, &packet_header->packet_index);
   StoreBigEndian<uint16_t>(user_data.size(), &packet_header->user_data_size);
   StoreBigEndian<uint16_t>(padding_size, &packet_header->padding_size);
 
@@ -122,12 +122,66 @@ void protocol_Parse_withWellFormedPacketV0_readsPacket() {
     ++ptr;
   }
 
+  return result;
+}
+
+void protocol_Parse_withWellFormedPacketV0_readsPacket() {
+  std::string user_data(
+      "User data with non-printable chars: \250, \251, \252, \253, \254, \255");
+  std::string packet_buffer = CreatePacketV0(user_data, 100);
+
   udpdiscovery::Packet packet;
   assert(packet.Parse(packet_buffer) == udpdiscovery::kProtocolVersion0);
   assert(packet.packet_type() == udpdiscovery::kPacketIAmHere);
-  assert(packet.application_id() == 12345);
-  assert(packet.peer_id() == 54321);
-  assert(packet.snapshot_index() == 1234567890);
+  assert(packet.application_id() == kApplicationId);
+  assert(packet.peer_id() == kPeerId);
+  assert(packet.snapshot_index() == kSnapshotIndex);
+  assert(packet.user_data() == user_data);
+}
+
+void protocol_Parse_withTooBigUserDataV0_failsToReadPacket() {
+  std::string user_data;
+  user_data.resize(udpdiscovery::kMaxUserDataSizeV0 + 1);
+  std::string packet_buffer = CreatePacketV0(user_data, 100);
+
+  udpdiscovery::Packet packet;
+  assert(packet.Parse(packet_buffer) == udpdiscovery::kProtocolVersionUnknown);
+}
+
+void protocol_Parse_withTooBigPaddingV0_failsToReadPacket() {
+  std::string user_data("user data");
+  std::string packet_buffer =
+      CreatePacketV0(user_data, udpdiscovery::kMaxPaddingSizeV0 + 1);
+
+  udpdiscovery::Packet packet;
+  assert(packet.Parse(packet_buffer) == udpdiscovery::kProtocolVersionUnknown);
+}
+
+std::string CreatePacketV1(const std::string& user_data) {
+  std::string result;
+
+  udpdiscovery::Packet packet;
+  packet.set_packet_type(udpdiscovery::kPacketIAmHere);
+  packet.set_application_id(kApplicationId);
+  packet.set_peer_id(kPeerId);
+  packet.set_snapshot_index(kSnapshotIndex);
+  packet.set_user_data(user_data);
+
+  packet.Serialize(udpdiscovery::kProtocolVersion1, result);
+
+  return result;
+}
+
+void protocol_Serialize_Parse_V1() {
+  std::string user_data("user data");
+  std::string packet_buffer = CreatePacketV1(user_data);
+
+  udpdiscovery::Packet packet;
+  assert(packet.Parse(packet_buffer) == udpdiscovery::kProtocolVersion1);
+  assert(packet.packet_type() == udpdiscovery::kPacketIAmHere);
+  assert(packet.application_id() == kApplicationId);
+  assert(packet.peer_id() == kPeerId);
+  assert(packet.snapshot_index() == kSnapshotIndex);
   assert(packet.user_data() == user_data);
 }
 
@@ -139,4 +193,7 @@ int main() {
   protocol_SerializeUnsignedIntegerBigEndian_Serialize_32();
   protocol_SerializeUnsignedIntegerBigEndian_Parse_32();
   protocol_Parse_withWellFormedPacketV0_readsPacket();
+  protocol_Parse_withTooBigUserDataV0_failsToReadPacket();
+  protocol_Parse_withTooBigPaddingV0_failsToReadPacket();
+  protocol_Serialize_Parse_V1();
 }
