@@ -3,8 +3,6 @@
 #undef NDEBUG
 #include <assert.h>
 
-#include <iostream>
-
 const int kPort = 12021;
 const uint64_t kApplicationId = 7681412;
 const unsigned int kMulticastAddress =

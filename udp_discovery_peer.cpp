@@ -323,8 +323,6 @@ class PeerEnv : public PeerEnvInterface {
       SetSocketTimeout(binding_sock_, SO_RCVTIMEO, 1000);
     }
 
-    buffer_.resize(kMaxPacketSize);
-
     return true;
   }
 
@@ -406,7 +404,10 @@ class PeerEnv : public PeerEnvInterface {
       sockaddr_in from_addr;
       AddressLenType addr_length = sizeof(sockaddr_in);
 
-      int length = (int)recvfrom(binding_sock_, &buffer_[0], buffer_.size(), 0,
+      std::string buffer;
+      buffer.resize(kMaxPacketSize);
+
+      int length = (int)recvfrom(binding_sock_, &buffer[0], buffer.size(), 0,
                                  (struct sockaddr*)&from_addr, &addr_length);
 
       lock_.Lock();
@@ -424,7 +425,8 @@ class PeerEnv : public PeerEnvInterface {
       from.set_port(ntohs(from_addr.sin_port));
       from.set_ip(ntohl(from_addr.sin_addr.s_addr));
 
-      processReceivedBuffer(NowTime(), from, length);
+      buffer.resize(length);
+      processReceivedBuffer(NowTime(), from, buffer);
     }
   }
 
@@ -447,59 +449,56 @@ class PeerEnv : public PeerEnvInterface {
   }
 
   void processReceivedBuffer(long cur_time_ms, const IpPort& from,
-                             int packet_length) {
-    if (packet_length >= sizeof(PacketHeader)) {
-      PacketHeader header;
-      std::string user_data;
+                             const std::string& buffer) {
+    Packet packet;
 
-      if (ParsePacket(buffer_.data(), packet_length, header, user_data)) {
-        bool accept_packet = false;
-        if (parameters_.application_id() == header.application_id) {
-          if (!parameters_.discover_self()) {
-            if (header.peer_id != peer_id_) {
-              accept_packet = true;
-            }
-          } else {
+    if (packet.Parse(buffer) != kProtocolVersionUnknown) {
+      bool accept_packet = false;
+      if (parameters_.application_id() == packet.application_id()) {
+        if (!parameters_.discover_self()) {
+          if (packet.peer_id() != peer_id_) {
             accept_packet = true;
           }
+        } else {
+          accept_packet = true;
+        }
+      }
+
+      if (accept_packet) {
+        lock_.Lock();
+
+        std::list<DiscoveredPeer>::iterator find_it = discovered_peers_.end();
+        for (std::list<DiscoveredPeer>::iterator it = discovered_peers_.begin();
+             it != discovered_peers_.end(); ++it) {
+          if (Same(parameters_.same_peer_mode(), (*it).ip_port(), from)) {
+            find_it = it;
+            break;
+          }
         }
 
-        if (accept_packet) {
-          lock_.Lock();
-
-          std::list<DiscoveredPeer>::iterator find_it = discovered_peers_.end();
-          for (std::list<DiscoveredPeer>::iterator it =
-                   discovered_peers_.begin();
-               it != discovered_peers_.end(); ++it) {
-            if (Same(parameters_.same_peer_mode(), (*it).ip_port(), from)) {
-              find_it = it;
-              break;
+        if (packet.packet_type() == kPacketIAmHere) {
+          if (find_it == discovered_peers_.end()) {
+            discovered_peers_.push_back(DiscoveredPeer());
+            discovered_peers_.back().set_ip_port(from);
+            discovered_peers_.back().SetUserData(packet.user_data(),
+                                                 packet.snapshot_index());
+            discovered_peers_.back().set_last_updated(cur_time_ms);
+          } else {
+            bool update_user_data =
+                ((*find_it).last_received_packet() < packet.snapshot_index());
+            if (update_user_data) {
+              (*find_it).SetUserData(packet.user_data(),
+                                     packet.snapshot_index());
             }
+            (*find_it).set_last_updated(cur_time_ms);
           }
-
-          if (header.packet_type == kPacketIAmHere) {
-            if (find_it == discovered_peers_.end()) {
-              discovered_peers_.push_back(DiscoveredPeer());
-              discovered_peers_.back().set_ip_port(from);
-              discovered_peers_.back().SetUserData(user_data,
-                                                   header.packet_index);
-              discovered_peers_.back().set_last_updated(cur_time_ms);
-            } else {
-              bool update_user_data =
-                  ((*find_it).last_received_packet() < header.packet_index);
-              if (update_user_data) {
-                (*find_it).SetUserData(user_data, header.packet_index);
-              }
-              (*find_it).set_last_updated(cur_time_ms);
-            }
-          } else if (header.packet_type == kPacketIAmOutOfHere) {
-            if (find_it != discovered_peers_.end()) {
-              discovered_peers_.erase(find_it);
-            }
+        } else if (packet.packet_type() == kPacketIAmOutOfHere) {
+          if (find_it != discovered_peers_.end()) {
+            discovered_peers_.erase(find_it);
           }
-
-          lock_.Unlock();
         }
+
+        lock_.Unlock();
       }
     }
   }
@@ -530,45 +529,45 @@ class PeerEnv : public PeerEnvInterface {
       lock_.Unlock();
     }
 
-    PacketHeader header;
-
-    header.packet_type = packet_type;
-
-    header.application_id = parameters_.application_id();
-    header.peer_id = peer_id_;
-    header.packet_index = packet_index_;
+    Packet packet;
+    packet.set_packet_type(packet_type);
+    packet.set_application_id(parameters_.application_id());
+    packet.set_peer_id(peer_id_);
+    packet.set_snapshot_index(packet_index_);
+    packet.SwapUserData(user_data);
 
     ++packet_index_;
 
     std::string packet_data;
-    if (MakePacket(header, user_data, packet_data)) {
-      sockaddr_in addr;
-      memset((char*)&addr, 0, sizeof(sockaddr_in));
-
-      if (parameters_.can_use_broadcast()) {
-        addr.sin_family = AF_INET;
-        addr.sin_port = htons(parameters_.port());
-        addr.sin_addr.s_addr = htonl(INADDR_BROADCAST);
-      }
-
-      if (parameters_.can_use_multicast()) {
-        addr.sin_family = AF_INET;
-        addr.sin_port = htons(parameters_.port());
-        addr.sin_addr.s_addr = htonl(parameters_.multicast_group_address());
-      }
-
-      sendto(sock_, &packet_data[0], packet_data.size(), 0,
-             (struct sockaddr*)&addr, sizeof(sockaddr_in));
+    if (!packet.Serialize(kProtocolVersionCurrent, packet_data)) {
+      return;
     }
+
+    sockaddr_in addr;
+    memset((char*)&addr, 0, sizeof(sockaddr_in));
+
+    if (parameters_.can_use_broadcast()) {
+      addr.sin_family = AF_INET;
+      addr.sin_port = htons(parameters_.port());
+      addr.sin_addr.s_addr = htonl(INADDR_BROADCAST);
+    }
+
+    if (parameters_.can_use_multicast()) {
+      addr.sin_family = AF_INET;
+      addr.sin_port = htons(parameters_.port());
+      addr.sin_addr.s_addr = htonl(parameters_.multicast_group_address());
+    }
+
+    sendto(sock_, packet_data.data(), packet_data.size(), 0,
+           (struct sockaddr*)&addr, sizeof(sockaddr_in));
   }
 
  private:
   PeerParameters parameters_;
   uint32_t peer_id_;
-  std::vector<char> buffer_;
   SocketType binding_sock_;
   SocketType sock_;
-  PacketIndex packet_index_;
+  uint64_t packet_index_;
 
   MinimalisticMutex lock_;
   int ref_count_;
