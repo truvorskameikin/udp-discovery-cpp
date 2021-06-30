@@ -1,7 +1,5 @@
 #include "udp_discovery_protocol.hpp"
 
-#include <iostream>
-
 namespace udpdiscovery {
 
 namespace impl {

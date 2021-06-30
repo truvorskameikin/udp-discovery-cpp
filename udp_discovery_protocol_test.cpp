@@ -3,8 +3,6 @@
 #undef NDEBUG
 #include <assert.h>
 
-#include <iostream>
-
 void protocol_SerializeUnsignedIntegerBigEndian_Serialize_8() {
   uint8_t v = 0x15;
   std::string buffer;
