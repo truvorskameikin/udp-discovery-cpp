@@ -5,6 +5,8 @@
 
 #include <string>
 
+#include "udp_discovery_protocol_version.hpp"
+
 namespace udpdiscovery {
 namespace impl {
 class BufferView {
@@ -84,13 +86,6 @@ const size_t kMaxPaddingSizeV0 = 32768;
 const size_t kMaxUserDataSizeV1 = 4096;
 // Used for receiving buffer.
 const size_t kMaxPacketSize = 65536;
-
-enum ProtocolVersion {
-  kProtocolVersion0,
-  kProtocolVersion1,
-  kProtocolVersionCurrent = kProtocolVersion1,
-  kProtocolVersionUnknown = 255
-};
 
 namespace impl {
 ProtocolVersion GetProtocolVersion(uint8_t version);

@@ -245,10 +245,55 @@ void peer_disappear() {
   peer1.StopAndWaitForThreads();
 }
 
+void peer_V0_V1_discover() {
+  // Peer1 supports only V0 protocol version, while peer2 supports both V0 and
+  // V1 protocol versions. Both should be discovered.
+
+  udpdiscovery::PeerParameters peer_parameters1;
+  peer_parameters1.set_can_discover(true);
+  peer_parameters1.set_can_be_discovered(true);
+  peer_parameters1.set_port(kPort);
+  peer_parameters1.set_application_id(kApplicationId);
+  peer_parameters1.set_send_timeout_ms(100);
+  peer_parameters1.set_supported_protocol_version(
+      udpdiscovery::kProtocolVersion0);
+
+  udpdiscovery::Peer peer1;
+  peer1.Start(peer_parameters1, "peer 1");
+
+  // TODO: Understand why do we need this timeout.
+  udpdiscovery::impl::SleepFor(1000);
+
+  udpdiscovery::PeerParameters peer_parameters2 = peer_parameters1;
+  peer_parameters2.set_supported_protocol_versions(
+      udpdiscovery::kProtocolVersion0, udpdiscovery::kProtocolVersion1);
+
+  udpdiscovery::Peer peer2;
+  peer2.Start(peer_parameters2, "peer 2");
+
+  FindUserDataCallable find_peer1(peer2, "peer 1");
+  WaitResult<bool> find2 =
+      Wait<bool>(/* timeout = */ 5000, /* sleep_timeout = */ 200,
+                 /* callable= */ find_peer1);
+  assert(find2.is_timeout == false);
+  assert(find2.has_result == true);
+
+  FindUserDataCallable find_peer2(peer1, "peer 2");
+  WaitResult<bool> find1 =
+      Wait<bool>(/* timeout = */ 5000, /* sleep_timeout = */ 200,
+                 /* callable= */ find_peer2);
+  assert(find1.is_timeout == false);
+  assert(find1.has_result == true);
+
+  peer1.StopAndWaitForThreads();
+  peer2.StopAndWaitForThreads();
+}
+
 int main() {
   peer_udp_broadcast_discovery();
   peer_udp_multicast_discovery();
   peer_change_user_data();
   peer_disappear();
+  peer_V0_V1_discover();
   return 0;
 }

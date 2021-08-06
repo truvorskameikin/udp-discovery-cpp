@@ -12,7 +12,9 @@ set(LIB_SOURCES
 set(LIB_HEADERS
 	udp_discovery_ip_port.hpp
 	udp_discovery_peer.hpp
-	udp_discovery_protocol.hpp)
+	udp_discovery_peer_parameters.hpp
+	udp_discovery_protocol.hpp
+	udp_discovery_protocol_version.hpp)
 
 add_library(udp-discovery STATIC ${LIB_SOURCES} ${LIB_HEADERS})
 set_property(TARGET udp-discovery PROPERTY CXX_STANDARD 98)

@@ -359,7 +359,13 @@ class PeerEnv : public PeerEnvInterface {
     while (true) {
       lock_.Lock();
       if (exit_) {
-        send(/* under_lock= */ true, kPacketIAmOutOfHere);
+        for (int protocol_version =
+                 parameters_.min_supported_protocol_version();
+             protocol_version <= parameters_.max_supported_protocol_version();
+             ++protocol_version) {
+          send(/* under_lock= */ true, (ProtocolVersion)protocol_version,
+               kPacketIAmOutOfHere);
+        }
 
         decreaseRefCountAndMaybeDestroySelfAndUnlock();
         return;
@@ -372,7 +378,13 @@ class PeerEnv : public PeerEnvInterface {
       if (parameters_.can_be_discovered()) {
         if (IsRightTime(last_send_time_ms, cur_time_ms,
                         parameters_.send_timeout_ms(), to_sleep_ms)) {
-          send(/* under_lock= */ false, kPacketIAmHere);
+          for (int protocol_version =
+                   parameters_.min_supported_protocol_version();
+               protocol_version <= parameters_.max_supported_protocol_version();
+               ++protocol_version) {
+            send(/* under_lock= */ false, (ProtocolVersion)protocol_version,
+                 kPacketIAmHere);
+          }
           last_send_time_ms = cur_time_ms;
         }
       }
@@ -452,7 +464,13 @@ class PeerEnv : public PeerEnvInterface {
                              const std::string& buffer) {
     Packet packet;
 
-    if (packet.Parse(buffer) != kProtocolVersionUnknown) {
+    ProtocolVersion packet_version = packet.Parse(buffer);
+    bool is_supported_packet_version =
+        (packet_version >= parameters_.min_supported_protocol_version() &&
+         packet_version <= parameters_.max_supported_protocol_version());
+
+    if (packet_version != kProtocolVersionUnknown &&
+        is_supported_packet_version) {
       bool accept_packet = false;
       if (parameters_.application_id() == packet.application_id()) {
         if (!parameters_.discover_self()) {
@@ -520,7 +538,8 @@ class PeerEnv : public PeerEnvInterface {
     lock_.Unlock();
   }
 
-  void send(bool under_lock, PacketType packet_type) {
+  void send(bool under_lock, ProtocolVersion protocol_version,
+            PacketType packet_type) {
     if (!under_lock) {
       lock_.Lock();
     }
@@ -539,7 +558,7 @@ class PeerEnv : public PeerEnvInterface {
     ++packet_index_;
 
     std::string packet_data;
-    if (!packet.Serialize(kProtocolVersionCurrent, packet_data)) {
+    if (!packet.Serialize(protocol_version, packet_data)) {
       return;
     }
 
