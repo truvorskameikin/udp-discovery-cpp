@@ -31,7 +31,7 @@ class MinimalisticThreadInterface {
 
   virtual void Join() = 0;
 };
-};  // namespace impl
+}  // namespace impl
 
 class Peer {
  public:
