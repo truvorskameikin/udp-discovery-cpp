@@ -48,6 +48,6 @@ namespace udpdiscovery {
   std::string IpToString(unsigned int ip);
 
   std::string IpPortToString(const IpPort& ip_port);
-};
+}
 
 #endif
