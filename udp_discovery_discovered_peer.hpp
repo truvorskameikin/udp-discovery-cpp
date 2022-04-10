@@ -42,6 +42,6 @@ namespace udpdiscovery {
     uint64_t last_received_packet_;
     long last_updated_;
   };
-};
+}
 
 #endif
