@@ -131,6 +131,6 @@ namespace udpdiscovery {
     bool discover_self_;
     SamePeerMode same_peer_mode_;
   };
-};
+}
 
 #endif
