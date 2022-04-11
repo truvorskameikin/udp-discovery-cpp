@@ -31,7 +31,7 @@ class MinimalisticThreadInterface {
 
   virtual void Join() = 0;
 };
-};  // namespace impl
+}  // namespace impl
 
 class Peer {
  public:
@@ -89,6 +89,6 @@ bool Same(PeerParameters::SamePeerMode mode, const IpPort& lhv,
 bool Same(PeerParameters::SamePeerMode mode,
           const std::list<DiscoveredPeer>& lhv,
           const std::list<DiscoveredPeer>& rhv);
-};  // namespace udpdiscovery
+}  // namespace udpdiscovery
 
 #endif
