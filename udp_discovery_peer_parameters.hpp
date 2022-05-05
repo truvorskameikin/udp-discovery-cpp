@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#include "udp_discovery_protocol_version.hpp"
+
 namespace udpdiscovery {
   class PeerParameters {
    public:
@@ -13,7 +15,9 @@ namespace udpdiscovery {
 
    public:
     PeerParameters()
-        : application_id_(0),
+        : min_supported_protocol_version_(kProtocolVersionCurrent),
+          max_supported_protocol_version_(kProtocolVersionCurrent),
+          application_id_(0),
           can_use_broadcast_(true),
           can_use_multicast_(false),
           port_(0),
@@ -24,6 +28,24 @@ namespace udpdiscovery {
           can_discover_(false),
           discover_self_(false),
           same_peer_mode_(kSamePeerIpAndPort) {
+    }
+
+    ProtocolVersion min_supported_protocol_version() {
+      return min_supported_protocol_version_;
+    }
+
+    ProtocolVersion max_supported_protocol_version() {
+      return max_supported_protocol_version_;
+    }
+
+    void set_supported_protocol_version(ProtocolVersion version) {
+      min_supported_protocol_version_ = version;
+      max_supported_protocol_version_ = version;
+    }
+
+    void set_supported_protocol_versions(ProtocolVersion min_version, ProtocolVersion max_version) {
+      min_supported_protocol_version_ = min_version;
+      max_supported_protocol_version_ = max_version;
     }
 
     uint32_t application_id() const {
@@ -119,6 +141,8 @@ namespace udpdiscovery {
     }
 
    private:
+    ProtocolVersion min_supported_protocol_version_;
+    ProtocolVersion max_supported_protocol_version_;
     uint32_t application_id_;
     bool can_use_broadcast_;
     bool can_use_multicast_;
