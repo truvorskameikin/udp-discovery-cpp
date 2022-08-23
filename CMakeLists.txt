@@ -4,7 +4,7 @@ project(udp-discovery-cpp)
 
 option(BUILD_EXAMPLE "Build example application." OFF)
 option(BUILD_TOOL "Build udp-discovery-tool application." OFF)
-option(BUILD_TEST "Build test." OFF)
+option(BUILD_TEST "Build test." ON)
 
 set(LIB_SOURCES
 	udp_discovery_ip_port.cpp
