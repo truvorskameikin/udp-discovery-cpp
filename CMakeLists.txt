@@ -4,6 +4,7 @@ project(udp-discovery-cpp)
 
 option(BUILD_EXAMPLE "Build example application." OFF)
 option(BUILD_TOOL "Build udp-discovery-tool application." OFF)
+option(BUILD_TEST "Build test." ON)
 
 set(LIB_SOURCES
 	udp_discovery_ip_port.cpp
@@ -55,12 +56,14 @@ if(BUILD_TOOL)
 	set_property(TARGET udp-discovery-example PROPERTY CXX_STANDARD 98)
 endif()
 
-enable_testing()
+if(BUILD_TEST)
+	enable_testing()
 
-add_executable(udp-discovery-protocol-test udp_discovery_protocol.cpp udp_discovery_protocol_test.cpp)
-set_property(TARGET udp-discovery-protocol-test PROPERTY CXX_STANDARD 98)
-add_test(udp-discovery-protocol-test udp-discovery-protocol-test)
+	add_executable(udp-discovery-protocol-test udp_discovery_protocol.cpp udp_discovery_protocol_test.cpp)
+	set_property(TARGET udp-discovery-protocol-test PROPERTY CXX_STANDARD 98)
+	add_test(udp-discovery-protocol-test udp-discovery-protocol-test)
 
-add_executable(udp-discovery-peer-e2e-test udp_discovery_protocol.cpp udp_discovery_peer.cpp udp_discovery_peer_e2e_test.cpp)
-set_property(TARGET udp-discovery-peer-e2e-test PROPERTY CXX_STANDARD 98)
-add_test(udp-discovery-peer-e2e-test udp-discovery-peer-e2e-test)
+	add_executable(udp-discovery-peer-e2e-test udp_discovery_protocol.cpp udp_discovery_peer.cpp udp_discovery_peer_e2e_test.cpp)
+	set_property(TARGET udp-discovery-peer-e2e-test PROPERTY CXX_STANDARD 98)
+	add_test(udp-discovery-peer-e2e-test udp-discovery-peer-e2e-test)
+endif()
