@@ -1,6 +1,8 @@
 #ifndef __UDP_DISCOVERY_UUID_H_
 #define __UDP_DISCOVERY_UUID_H_
 
+#include <stdint.h>
+
 #include <string>
 
 namespace udpdiscovery {
