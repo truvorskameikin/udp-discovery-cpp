@@ -63,6 +63,10 @@ if(BUILD_TEST)
 	set_property(TARGET udp-discovery-protocol-test PROPERTY CXX_STANDARD 98)
 	add_test(udp-discovery-protocol-test udp-discovery-protocol-test)
 
+	add_executable(udp-discovery-uuid-test udp_discovery_uuid_test.cpp)
+	set_property(TARGET udp-discovery-uuid-test PROPERTY CXX_STANDARD 98)
+	add_test(udp-discovery-uuid-test udp-discovery-uuid-test)
+
 	add_executable(udp-discovery-peer-e2e-test udp_discovery_protocol.cpp udp_discovery_peer.cpp udp_discovery_peer_e2e_test.cpp)
 	set_property(TARGET udp-discovery-peer-e2e-test PROPERTY CXX_STANDARD 98)
 	add_test(udp-discovery-peer-e2e-test udp-discovery-peer-e2e-test)
