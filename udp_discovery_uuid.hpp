@@ -15,9 +15,18 @@ class Uuid {
   /**
    * \brief Constructs nill UUID.
    */
-  Uuid() {
+  Uuid() : is_nill_(true) {
     for (size_t i = 0; i < 16; ++i) {
       uuid_[i] = 0;
+    }
+  }
+
+  /**
+   * \brief Constructs UUID from the existing UUID.
+   */
+  Uuid(const Uuid& rhv) : is_nill_(rhv.is_nill_) {
+    for (size_t i = 0; i < 16; ++i) {
+      uuid_[i] = rhv.uuid_[i];
     }
   }
 
@@ -75,6 +84,8 @@ class Uuid {
       s += 2;
     }
 
+    is_nill_ = checkIsNill();
+
     return true;
   }
 
@@ -90,6 +101,8 @@ class Uuid {
       uuid_[i] = bytes[i];
     }
 
+    is_nill_ = checkIsNill();
+
     return true;
   }
 
@@ -98,14 +111,7 @@ class Uuid {
    */
   const uint8_t* bytes() const { return uuid_; }
 
-  bool IsNill() const {
-    for (size_t i = 0; i < 16; ++i) {
-      if (uuid_[i] != 0) {
-        return false;
-      }
-    }
-    return true;
-  }
+  bool IsNill() const { return is_nill_; }
 
  private:
   static bool checkFormat(const std::string& s, const std::string& format) {
@@ -148,7 +154,17 @@ class Uuid {
     return 0;
   }
 
+  bool checkIsNill() const {
+    for (size_t i = 0; i < 16; ++i) {
+      if (uuid_[i] != 0) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   uint8_t uuid_[16];
+  bool is_nill_;
 };
 }  // namespace udpdiscovery
 

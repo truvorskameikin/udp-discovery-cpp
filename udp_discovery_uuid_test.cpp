@@ -3,18 +3,47 @@
 #undef NDEBUG
 #include <assert.h>
 
-void uuid_nillUuid() {
-  udpdiscovery::Uuid nillUuid;
-  assert(nillUuid.IsNill());
-
-  bool allZero = true;
+static bool allZeroBytes(const udpdiscovery::Uuid& uuid) {
+  bool result = true;
   for (size_t i = 0; i < 16; ++i) {
-    if (nillUuid.bytes()[i] != 0) {
-      allZero = false;
+    if (uuid.bytes()[i] != 0) {
+      result = false;
       break;
     }
   }
-  assert(allZero);
+  return result;
+}
+
+void uuid_nillUuid() {
+  {
+    udpdiscovery::Uuid nillUuid;
+    assert(nillUuid.IsNill());
+    assert(allZeroBytes(nillUuid));
+  }
+
+  {
+    udpdiscovery::Uuid nillUuid;
+    nillUuid.FromUrn("urn:uuid:00000000-0000-0000-0000-000000000000");
+    assert(nillUuid.IsNill());
+    assert(allZeroBytes(nillUuid));
+  }
+}
+
+void uuid_fromUuid() {
+  {
+    udpdiscovery::Uuid nillUuid;
+    udpdiscovery::Uuid newUuid(nillUuid);
+    assert(newUuid.IsNill());
+    assert(allZeroBytes(newUuid));
+  }
+
+  {
+    udpdiscovery::Uuid oldUuid;
+    oldUuid.FromUrn("urn:uuid:01234567-8901-2345-6789-abcdefabcdef");
+    udpdiscovery::Uuid newUuid(oldUuid);
+    assert(!newUuid.IsNill());
+    assert(!allZeroBytes(newUuid));
+  }
 }
 
 void uuid_fromUrn() {
@@ -67,5 +96,6 @@ void uuid_fromUrn() {
 
 int main() {
   uuid_nillUuid();
+  uuid_fromUuid();
   uuid_fromUrn();
 }
