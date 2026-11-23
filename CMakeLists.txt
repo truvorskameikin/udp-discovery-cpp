@@ -67,3 +67,5 @@ if(BUILD_TEST)
 	set_property(TARGET udp-discovery-peer-e2e-test PROPERTY CXX_STANDARD 98)
 	add_test(udp-discovery-peer-e2e-test udp-discovery-peer-e2e-test)
 endif()
+
+target_include_directories(udp-discovery PUBLIC .)
